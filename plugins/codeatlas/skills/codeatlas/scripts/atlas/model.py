@@ -7,7 +7,9 @@ return a new one; nothing mutates a map it was given.
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -21,6 +23,26 @@ EDGE_KINDS = ("call", "data", "event")
 
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 HASH_PATTERN = re.compile(r"^[0-9a-f]{16}$")
+
+
+_LINE_BREAK = re.compile(r"\r\n|\r|\n")
+
+
+def split_lines(text: str) -> list:
+    """Split source text the way editors do: on CR, LF and CRLF only.
+
+    `str.splitlines` also breaks on form feeds and Unicode separators, which
+    would number lines differently from VS Code and from Python's own parser.
+    """
+    lines = _LINE_BREAK.split(text)
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def read_source(path: Path) -> str:
+    """Read a source file, dropping a byte order mark as editors do."""
+    return path.read_text(encoding="utf-8-sig", errors="replace")
 
 
 class MapError(Exception):
@@ -47,9 +69,32 @@ def dump_map(atlas: dict) -> str:
     return json.dumps(atlas, indent=2, ensure_ascii=False) + "\n"
 
 
-def save_map(path: Path, atlas: dict) -> None:
+def write_text(path: Path, text: str) -> None:
+    """Write a file atomically, and never through a symbolic link.
+
+    A repository can commit `.codeatlas/atlas.html` as a link to any file the
+    user can write. Following it would let a cloned repository overwrite that
+    file, so a link in the way is an error, and the write replaces the path
+    itself (temporary file, then rename) instead of writing into it.
+    """
+    if path.is_symlink():
+        raise MapError(f"refusing to write {path}: it is a symbolic link")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dump_map(atlas), encoding="utf-8")
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(text)
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
+
+
+def save_map(path: Path, atlas: dict) -> None:
+    write_text(path, dump_map(atlas))
 
 
 def find_map(start: Path) -> Optional[Path]:
@@ -57,7 +102,8 @@ def find_map(start: Path) -> Optional[Path]:
     current = start if start.is_dir() else start.parent
     for directory in (current, *current.parents):
         candidate = directory / MAP_DIR / MAP_FILE
-        if candidate.is_file():
+        # A linked `.codeatlas` would send every write outside the repository.
+        if candidate.is_file() and not candidate.parent.is_symlink():
             return candidate
     return None
 

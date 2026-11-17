@@ -12,7 +12,7 @@ You write one file, `.codeatlas/map.json`, at the root of the user's repository.
 - A standalone page, `.codeatlas/atlas.html`, which you build with the script below. It shows the top-level flow, opens a sub-flow when a box is clicked, and opens the code in the reader's editor.
 - The CodeAtlas VS Code extension, which reads the same file to show a node's visual from a line of code.
 
-The script is `python3 ${CLAUDE_SKILL_DIR}/scripts/codeatlas.py`, called `codeatlas.py` below. It needs only the Python standard library. Run it from inside the repository.
+The script is `python3 ${CLAUDE_SKILL_DIR}/scripts/codeatlas.py`, called `codeatlas.py` below. It needs only the Python standard library. Run it from inside the repository: it finds the nearest `.codeatlas/map.json` at or above the working directory, and treats the folder holding `.codeatlas` as the repository root. To keep the map somewhere else, pass `--map <file> --root <repository>` to any command except `symbols`.
 
 ## Pick the mode
 
@@ -23,15 +23,15 @@ The script is `python3 ${CLAUDE_SKILL_DIR}/scripts/codeatlas.py`, called `codeat
 | A map kept alongside a task they are starting | **plan** |
 | The map brought up to date after code changes, or a hook reported stale nodes | **refresh** |
 
-If a map already exists, extend it. Never start over unless the user asks. Run `codeatlas.py status` first to see whether one exists and what is stale.
+If a map already exists, extend it. Never start over unless the user asks. Run `codeatlas.py status` first: it says whether a map exists and lists what is stale.
 
 ## map
 
 1. Survey before writing: the README, the entry points (CLI, server, jobs, tests that drive the system), and the package layout.
-2. Choose the top level: 3 to 8 boxes that are the system's runtime responsibilities. Folders are not automatically boxes; draw what a new engineer would sketch on a whiteboard. Add `external` nodes for things outside the repository that the flow depends on (a database, an API, a file drop).
-3. Draw the edges. `from` calls or sends to `to`. The label is what travels, as a short noun phrase (`orders`, `parsed config`).
+2. Choose the top level: 3 to 9 boxes, counting everything in the view, that are the system's runtime responsibilities. Folders are not automatically boxes; draw what a new engineer would sketch on a whiteboard. Add `external` nodes for things outside the repository that the flow depends on (a database, an API, a file drop).
+3. Draw the edges in the direction the work moves: from a caller to what it calls, from a producer to what consumes its output. Where those disagree (a caller that mostly receives data back), draw the direction the data travels. The label is what travels, as a short noun phrase (`orders`, `parsed config`).
 4. Go one level down inside each top-level box. Go deeper only where the core logic lives or where the user asked. Read the code for every node before you describe it.
-5. Write the map, then run `codeatlas.py build --open`. Fix every error it prints and run it again.
+5. Write the map, then run `codeatlas.py build --open`. Fix every error it prints and run it again. (`--open` shows the page in the user's browser; leave it off when nobody is at the machine.)
 6. Tell the user where the viewer is, what the map covers, and which areas you left shallow.
 
 On a large repository, map one subsystem at a time and say so. A shallow, correct map that the user can ask you to deepen is better than a deep map written from skimmed code.
@@ -91,11 +91,11 @@ When the plugin's hook reports stale nodes during other work, finish that work f
 
 - `id`: lowercase letters, digits, `.`, `_`, `-`. Mirror the hierarchy with dots (`engine.step.validate`). Ids are permanent; the reader's links and the extension use them.
 - `parent`: the id of the containing node, or `null` at the top level. A node's children are its sub-flow.
-- `kind`: `service` (a runtime responsibility), `module` (a file or package), `function` (a function, method or class), `step` (a stage inside a function), `data` (a schema, table or file format), `external` (outside the repository).
-- `anchors`: prefer `symbol`. Python symbols are resolved exactly and may be qualified (`Engine.step`); other languages use a text search, so check with `codeatlas.py symbols <file>` and fall back to `startLine`/`endLine` if the symbol is not listed. Use line ranges for steps inside a function. `file` is relative to the repository root with forward slashes.
+- `kind`: `service` (a runtime responsibility), `module` (a file or package), `function` (a function, method, or class with behaviour), `step` (a stage inside a function), `data` (a schema, table, file format, or a class that only carries data), `external` (outside the repository).
+- `anchors`: a node may have several, and a parent may anchor the same file as its children. Prefer `symbol`. Python symbols are resolved exactly and may be qualified (`Engine.step`); a decorated definition starts at its first decorator. Other languages use a text search, so check with `codeatlas.py symbols <file>` (the path is relative to the working directory); anything it lists can be an anchor, including constants. Fall back to `startLine`/`endLine` if the symbol is not listed. Use line ranges for steps inside a function: they are 1-based and inclusive, may leave gaps, and should not overlap their siblings. `file` is relative to the repository root with forward slashes.
 - Never write `hash`, `stale` or `staleReason` yourself. `build` and `stamp` fill in line ranges and hashes; `refresh` sets the stale flags.
 - `edges` may connect nodes at any depth. The viewer lifts each edge to whatever level is on screen, so connect the most specific nodes you know and do not repeat the edge between their parents.
-- Keep each view to between 3 and 9 boxes. `build` warns above 12; group the children under a new parent when it does.
+- Aim for 3 to 9 boxes in a view. `build` warns above 12; group the children under a new parent when it does. A node with two natural parts is fine as it is; never invent a box to reach a number.
 
 The full schema is `${CLAUDE_SKILL_DIR}/schema/map.schema.json`.
 
@@ -105,7 +105,7 @@ The reader clicks a box because they do not understand that code yet. Write for 
 
 - `title`: one to four words, the name a teammate would use.
 - `summary`: one sentence under 160 characters saying what it does. It appears on hover and in lists.
-- `explanation`: 60 to 200 words of Markdown, in this order:
+- `explanation`: roughly 60 to 200 words of Markdown (a guide; nothing enforces it), in this order:
   1. What it does and why it exists.
   2. How it works: the main moves in order, naming real identifiers in backticks.
   3. What goes in and what comes out.

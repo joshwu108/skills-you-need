@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 
-from .model import EDGE_KINDS, HASH_PATTERN, ID_PATTERN, MAP_VERSION, NODE_KINDS
+from .model import EDGE_KINDS, HASH_PATTERN, ID_PATTERN, MAP_VERSION, NODE_KINDS, read_source, split_lines
 
 MAX_CHILDREN_PER_VIEW = 12
 MAX_SUMMARY_LENGTH = 160
@@ -286,6 +286,6 @@ def _check_against_files(atlas: dict, root: Path) -> list:
 
 def _count_lines(path: Path) -> Optional[int]:
     try:
-        return len(path.read_text(encoding="utf-8", errors="replace").splitlines())
+        return len(split_lines(read_source(path)))
     except OSError:
         return None

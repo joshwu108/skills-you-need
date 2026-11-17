@@ -124,3 +124,47 @@ def test_list_symbols_reports_qualified_python_names():
 def test_list_symbols_for_other_languages():
     names = [name for name, _ in list_symbols("a.go", GO_SOURCE)]
     assert names == ["Book", "Add", "New"]
+
+
+def test_unbalanced_braces_stop_at_the_block_limit():
+    from atlas import symbols
+
+    source = "function open() {\n" + "  x();\n" * (symbols.MAX_BLOCK_LINES + 50)
+    assert find_symbol("a.js", source, "open") == Span(1, symbols.MAX_BLOCK_LINES)
+
+
+def test_finding_one_symbol_does_not_follow_every_block():
+    # 4000 unclosed definitions: resolving all of them would take minutes.
+    source = "".join(f"function f{i}() {{\n" for i in range(4000)) + "function last() {\n}\n"
+    assert find_symbol("a.js", source, "last") == Span(4001, 4002)
+    assert find_symbol("a.js", source, "absent") is None
+
+
+def test_nested_lookup_in_text_search_needs_the_outer_name():
+    assert find_symbol("a.ts", JS_SOURCE, "handle") is None
+    assert find_symbol("a.ts", JS_SOURCE, "Nope.handle") is None
+
+
+def test_statement_without_a_semicolon_does_not_absorb_the_next_block():
+    source = "export const a = foo()\nexport function g() {\n  return 1\n}\n"
+    assert find_symbol("a.ts", source, "a") == Span(1, 1)
+    assert find_symbol("a.ts", source, "g") == Span(2, 4)
+
+
+def test_top_level_definition_beats_a_local_of_the_same_name():
+    source = "function render() {\n  const items = load();\n  return items;\n}\n\nconst items = [];\n"
+    assert find_symbol("a.js", source, "items") == Span(6, 6)
+
+
+def test_two_definitions_at_the_same_depth_are_ambiguous():
+    source = "function run() {\n}\n\nfunction run() {\n}\n"
+    assert find_symbol("a.js", source, "run") is None
+
+
+def test_python_definitions_inside_conditionals_are_found():
+    source = (
+        "try:\n    import fast\nexcept ImportError:\n    def helper():\n        return 1\n"
+        "if True:\n    class Box:\n        def get(self):\n            return 2\n"
+    )
+    assert find_symbol("a.py", source, "helper") == Span(4, 5)
+    assert find_symbol("a.py", source, "Box.get") == Span(8, 9)

@@ -13,10 +13,16 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Optional
+
+from .model import split_lines
 
 # How many lines after a definition may pass before its opening brace.
 BRACE_SEARCH_LINES = 5
+# The longest block the text search will follow. It bounds the work on files
+# with unbalanced braces; a longer definition is cut off at this length.
+MAX_BLOCK_LINES = 3000
 
 _MODIFIERS = (
     r"(?:(?:export|default|declare|public|private|protected|internal|static|abstract|"
@@ -31,6 +37,7 @@ _METHOD = re.compile(
     r"^\s*(?:(?:public|private|protected|static|async|override|readonly|get|set)\s+)*"
     r"(?P<name>[A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\("
 )
+_PYTHON_SUFFIXES = (".py", ".pyi")
 _NOT_METHODS = {
     "if", "for", "while", "switch", "catch", "return", "function", "else",
     "do", "try", "new", "throw", "await", "typeof", "super",
@@ -49,41 +56,38 @@ def find_symbol(path: str, text: str, symbol: str) -> Optional[Span]:
     `symbol` may be qualified with dots (`Class.method`). An unqualified
     name matches a nested definition only when exactly one has that name.
     """
-    symbols = list_symbols(path, text)
-    exact = [span for name, span in symbols if name == symbol]
+    parsed = _python_symbols(text) if path.endswith(_PYTHON_SUFFIXES) else None
+    if parsed is None:
+        # Text search: follow only the blocks on the way to this one symbol.
+        return _find_nested(split_lines(text), symbol.split("."))
+    exact = [span for name, span in parsed if name == symbol]
     if exact:
         return exact[0]
-    suffix = [span for name, span in symbols if name.endswith("." + symbol)]
-    if len(suffix) == 1:
-        return suffix[0]
-    if "." in symbol and not _is_python(path, text):
-        return _find_nested(text.splitlines(), symbol.split("."))
-    return None
+    suffix = [span for name, span in parsed if name.endswith("." + symbol)]
+    return suffix[0] if len(suffix) == 1 else None
 
 
 def list_symbols(path: str, text: str) -> list:
     """Return `(qualified name, Span)` for each definition, in file order."""
-    if path.endswith((".py", ".pyi")):
+    if path.endswith(_PYTHON_SUFFIXES):
         parsed = _python_symbols(text)
         if parsed is not None:
-            return parsed
-    lines = text.splitlines()
+            return list(parsed)
+    lines = split_lines(text)
     return [
         (match.group("name"), Span(index + 1, _block_end(lines, index) + 1))
         for index, match in _definitions(lines, 0, len(lines))
     ]
 
 
-def _is_python(path: str, text: str) -> bool:
-    return path.endswith((".py", ".pyi")) and _python_symbols(text) is not None
-
-
-def _python_symbols(text: str) -> Optional[list]:
+@lru_cache(maxsize=32)
+def _python_symbols(text: str) -> Optional[tuple]:
+    """Parse once per file content; several anchors usually share a file."""
     try:
         tree = ast.parse(text)
-    except (SyntaxError, ValueError):
+    except (SyntaxError, ValueError, RecursionError):
         return None
-    return _python_walk(tree.body, prefix="", top_level=True)
+    return tuple(_python_walk(tree.body, prefix="", top_level=True))
 
 
 def _python_walk(body: list, prefix: str, top_level: bool) -> list:
@@ -100,7 +104,17 @@ def _python_walk(body: list, prefix: str, top_level: bool) -> list:
                 if isinstance(target, ast.Name):
                     span = Span(statement.lineno, statement.end_lineno or statement.lineno)
                     found.append((target.id, span))
+        else:
+            # Definitions guarded by `if`, `try` or `with` keep their enclosing name.
+            for block in _nested_blocks(statement):
+                found.extend(_python_walk(block, prefix=prefix, top_level=top_level))
     return found
+
+
+def _nested_blocks(statement: ast.stmt) -> list:
+    blocks = [getattr(statement, field, None) for field in ("body", "orelse", "finalbody")]
+    blocks.extend(handler.body for handler in getattr(statement, "handlers", []))
+    return [block for block in blocks if isinstance(block, list)]
 
 
 def _definitions(lines: list, start: int, stop: int) -> list:
@@ -127,13 +141,24 @@ def _find_nested(lines: list, parts: list) -> Optional[Span]:
 
 
 def _first_definition(lines: list, name: str, start: int, stop: int, allow_methods: bool) -> Optional[int]:
+    """The line defining `name`, or None when it is absent or ambiguous.
+
+    Of several definitions with the name, the least indented wins, so a
+    top-level `const items` is preferred to a local of the same name. Two at
+    that same depth are ambiguous and are not guessed between.
+    """
+    candidates = []
     for index in range(start, stop):
         match = _DEFINITION.match(lines[index])
         if match is None and allow_methods and name not in _NOT_METHODS:
             match = _METHOD.match(lines[index])
         if match and match.group("name") == name:
-            return index
-    return None
+            candidates.append((_indent(lines[index]), index))
+    if not candidates:
+        return None
+    shallowest = min(indent for indent, _ in candidates)
+    outermost = [index for indent, index in candidates if indent == shallowest]
+    return outermost[0] if len(outermost) == 1 else None
 
 
 def _block_end(lines: list, start: int) -> int:
@@ -143,7 +168,8 @@ def _block_end(lines: list, start: int) -> int:
 
     depth = 0
     opened = False
-    for index in range(start, len(lines)):
+    limit = min(len(lines), start + MAX_BLOCK_LINES)
+    for index in range(start, limit):
         for char in lines[index]:
             if char == "{":
                 depth += 1
@@ -155,15 +181,20 @@ def _block_end(lines: list, start: int) -> int:
         if not opened:
             if lines[index].rstrip().endswith(";"):
                 return index
+            # A statement with no semicolon ends where the next definition begins.
+            follows = index + 1 < len(lines) and _DEFINITION.match(lines[index + 1])
+            if follows and _indent(lines[index + 1]) <= _indent(lines[start]):
+                return index
             if index - start >= BRACE_SEARCH_LINES:
-                break
-    return _indented_end(lines, start)
+                return _indented_end(lines, start)
+    # Braces never balanced within the limit: stop there rather than at end of file.
+    return limit - 1 if opened else _indented_end(lines, start)
 
 
 def _indented_end(lines: list, start: int) -> int:
     base = _indent(lines[start])
     end = start
-    for index in range(start + 1, len(lines)):
+    for index in range(start + 1, min(len(lines), start + MAX_BLOCK_LINES)):
         if lines[index].strip() == "":
             continue
         if _indent(lines[index]) <= base:

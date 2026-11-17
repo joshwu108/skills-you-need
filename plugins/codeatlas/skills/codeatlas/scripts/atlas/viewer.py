@@ -47,7 +47,8 @@ def build_html(atlas: dict, root: Path, assets_dir: Path = DEFAULT_ASSETS) -> st
     )
     return _TEMPLATE.format(
         policy=policy,
-        title=html.escape(str(atlas.get("title", "Code map"))),
+        # Collapsed to one line: the title is the only map text outside the JSON block.
+        title=html.escape(" ".join(str(atlas.get("title", "Code map")).split())),
         style=style,
         data=_inert_json({"map": atlas, "root": str(root.resolve())}),
         script=script,

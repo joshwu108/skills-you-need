@@ -187,3 +187,80 @@ def test_refresh_stamps_anchors_that_were_never_hashed(atlas, repo):
     result = refresh(atlas, repo)
     assert ("engine.step", "ok") in statuses(result)
     assert "hash" in node(result.atlas, "engine.step")["anchors"][0]
+
+
+def test_refresh_skips_the_moved_block_search_on_very_large_files(repo):
+    from atlas import anchors
+
+    body = [f"x{i} = {i}" for i in range(5000)]
+    path = repo / "big.py"
+    path.write_text("\n".join(body) + "\n", encoding="utf-8")
+    big = {
+        "version": 1,
+        "title": "Big",
+        "nodes": [{"id": "big", "parent": None, "kind": "module", "title": "Big",
+                   "anchors": [{"file": "big.py", "startLine": 1, "endLine": 2500}]}],
+    }
+    stamped = stamp(big, repo).atlas
+    assert (5000 - 2500 + 1) * 2500 > anchors.MAX_SEARCH_WORK
+    path.write_text("# shifted\n" + "\n".join(body) + "\n", encoding="utf-8")
+
+    result = refresh(stamped, repo)
+
+    # The block only moved by one line, but finding that would cost too much.
+    assert ("big", "changed") in statuses(result)
+
+
+def test_lines_are_split_like_an_editor_and_a_bom_is_dropped(repo):
+    from atlas.model import read_source, split_lines
+
+    # A form feed and a Unicode separator are not line breaks in an editor.
+    assert split_lines("a\x0cb\nc d\r\ne\rf\n") == ["a\x0cb", "c d", "e", "f"]
+    assert split_lines("") == []
+    path = repo / "bom.py"
+    path.write_bytes(b"\xef\xbb\xbfx = 1\n")
+    assert read_source(path) == "x = 1\n"
+
+
+def test_anchor_after_a_form_feed_keeps_the_parsers_line_numbers(repo):
+    (repo / "ff.py").write_text("a = 1\n\x0c\ndef f():\n    return 1\n", encoding="utf-8")
+    atlas = {"version": 1, "title": "T", "nodes": [
+        {"id": "f", "parent": None, "kind": "function", "title": "f", "anchors": [{"file": "ff.py", "symbol": "f"}]}]}
+    anchor = stamp(atlas, repo).atlas["nodes"][0]["anchors"][0]
+    assert (anchor["startLine"], anchor["endLine"]) == (3, 4)
+    assert anchor["hash"] == hash_lines(["def f():", "    return 1"])
+
+
+def test_hash_strips_only_spaces_and_tabs():
+    assert hash_lines(["a \t"]) == hash_lines(["a"])
+    assert hash_lines(["a\x0c"]) != hash_lines(["a"])
+
+
+def test_wrongly_typed_fields_are_left_alone_not_rewritten(repo):
+    for broken in (
+        {"version": 1, "title": "T", "nodes": None},
+        {"version": 1, "title": "T", "nodes": {"a": 1}},
+        {"version": 1, "title": "T", "nodes": [{"id": "a", "anchors": "ab"}, "text", 7]},
+    ):
+        before = copy.deepcopy(broken)
+        assert stamp(broken, repo).atlas == before
+        assert refresh(broken, repo).atlas == before
+        assert broken == before
+
+
+def test_wrongly_typed_anchors_are_reported_not_crashed_on(repo):
+    anchors = [
+        {"file": ["x"], "symbol": "f"},
+        {"file": "src/engine.py", "startLine": "1", "endLine": 2},
+        {"file": "src/engine.py", "symbol": 5, "startLine": True, "endLine": 3},
+        None,
+    ]
+    broken = {"version": 1, "title": "T", "nodes": [{"id": "a", "anchors": copy.deepcopy(anchors)}]}
+
+    stamped = stamp(broken, repo)
+    refreshed = refresh(broken, repo)
+
+    assert len(stamped.errors) == 3
+    assert stamped.atlas["nodes"][0]["anchors"] == anchors
+    assert refreshed.atlas["nodes"][0]["anchors"] == anchors
+    assert refreshed.atlas["nodes"][0]["stale"] is True

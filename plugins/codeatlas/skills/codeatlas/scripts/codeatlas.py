@@ -23,7 +23,18 @@ from typing import Optional, Sequence
 
 from atlas.anchors import CHANGED, MISSING, MOVED, refresh, stamp
 from atlas.hook import run_hook
-from atlas.model import MAP_DIR, MAP_FILE, VIEWER_FILE, MapError, find_map, load_map, nodes_of, save_map
+from atlas.model import (
+    MAP_DIR,
+    MAP_FILE,
+    VIEWER_FILE,
+    MapError,
+    find_map,
+    load_map,
+    nodes_of,
+    read_source,
+    save_map,
+    write_text,
+)
 from atlas.symbols import list_symbols
 from atlas.validate import has_errors, validate_map
 from atlas.viewer import build_html
@@ -88,9 +99,28 @@ def _print_issues(issues: list) -> None:
         print(issue)
 
 
+def _load_sound(map_path: Path) -> Optional[dict]:
+    """Load a map that is structurally sound, or print why it is not.
+
+    stamp and refresh rewrite the file, so they only ever run on a map whose
+    fields have the right types; otherwise the errors are shown and nothing is
+    changed.
+    """
+    atlas = load_map(map_path)
+    issues = validate_map(atlas)
+    if has_errors(issues):
+        _print_issues([issue for issue in issues if issue.level == "error"])
+        print("The map was not changed. Fix the errors above first.")
+        return None
+    return atlas
+
+
 def _build(args: argparse.Namespace) -> int:
     map_path, root = _locate(args)
-    stamped = stamp(load_map(map_path), root)
+    sound = _load_sound(map_path)
+    if sound is None:
+        return EXIT_ATTENTION
+    stamped = stamp(sound, root)
     for error in stamped.errors:
         print(f"error: {error}")
     # Refresh after stamping so the page shows current line ranges and stale flags.
@@ -102,9 +132,9 @@ def _build(args: argparse.Namespace) -> int:
         return EXIT_ATTENTION
 
     save_map(map_path, atlas)
-    output = (args.output or map_path.parent / VIEWER_FILE).resolve()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(build_html(atlas, root), encoding="utf-8")
+    # Not resolved: a link at the output path must be seen and refused, not followed.
+    output = (args.output or map_path.parent / VIEWER_FILE).absolute()
+    write_text(output, build_html(atlas, root))
     _ignore_viewer(map_path.parent)
 
     stale = _stale_ids(atlas)
@@ -121,7 +151,7 @@ def _ignore_viewer(map_dir: Path) -> None:
     ignore = map_dir / ".gitignore"
     existing = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
     if VIEWER_FILE not in existing.splitlines():
-        ignore.write_text(existing + VIEWER_FILE + "\n", encoding="utf-8")
+        write_text(ignore, existing + VIEWER_FILE + "\n")
 
 
 def _validate(args: argparse.Namespace) -> int:
@@ -136,7 +166,10 @@ def _validate(args: argparse.Namespace) -> int:
 
 def _stamp(args: argparse.Namespace) -> int:
     map_path, root = _locate(args)
-    result = stamp(load_map(map_path), root, node_ids=args.node, force=args.all)
+    sound = _load_sound(map_path)
+    if sound is None:
+        return EXIT_ATTENTION
+    result = stamp(sound, root, node_ids=args.node, force=args.all)
     for error in result.errors:
         print(f"error: {error}")
     if result.errors:
@@ -148,7 +181,9 @@ def _stamp(args: argparse.Namespace) -> int:
 
 def _refresh(args: argparse.Namespace) -> int:
     map_path, root = _locate(args)
-    atlas = load_map(map_path)
+    atlas = _load_sound(map_path)
+    if atlas is None:
+        return EXIT_ATTENTION
     result = refresh(atlas, root)
     if result.atlas != atlas:
         save_map(map_path, result.atlas)
@@ -160,6 +195,10 @@ def _refresh(args: argparse.Namespace) -> int:
 
 def _status(args: argparse.Namespace) -> int:
     map_path, _ = _locate(args)
+    if not map_path.exists():
+        # Asking "is there a map?" is a normal first question, not a failure.
+        print(f"No map yet. A new one would be written to {map_path}.")
+        return EXIT_OK
     return _report_stale(load_map(map_path))
 
 
@@ -180,7 +219,7 @@ def _report_stale(atlas: dict) -> int:
 
 def _symbols(args: argparse.Namespace) -> int:
     try:
-        text = args.file.read_text(encoding="utf-8", errors="replace")
+        text = read_source(args.file)
     except OSError as error:
         raise MapError(f"cannot read {args.file}: {error.strerror or error}") from error
     for name, span in list_symbols(args.file.name, text):

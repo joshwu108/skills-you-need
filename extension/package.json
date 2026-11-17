@@ -1,0 +1,108 @@
+{
+  "name": "codeatlas",
+  "displayName": "CodeAtlas",
+  "description": "See the visual explanation for the code under your cursor, and jump from a flow diagram to the lines behind each box. Reads the map written by the CodeAtlas skill for Claude Code.",
+  "version": "0.1.0",
+  "publisher": "joshwu108",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joshwu108/skills-you-need.git",
+    "directory": "extension"
+  },
+  "bugs": {
+    "url": "https://github.com/joshwu108/skills-you-need/issues"
+  },
+  "homepage": "https://github.com/joshwu108/skills-you-need#readme",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "diagram",
+    "architecture",
+    "documentation",
+    "claude",
+    "onboarding"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:.codeatlas/map.json"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeatlas.openMap",
+        "title": "Open Map",
+        "category": "CodeAtlas"
+      },
+      {
+        "command": "codeatlas.explainHere",
+        "title": "Explain This Code",
+        "category": "CodeAtlas"
+      },
+      {
+        "command": "codeatlas.showNode",
+        "title": "Show Node",
+        "category": "CodeAtlas"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "codeatlas.showNode",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "codeatlas.explainHere",
+          "when": "codeatlas.hasMap",
+          "group": "navigation@90"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "CodeAtlas",
+      "properties": {
+        "codeatlas.codeLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a link above each piece of code that has an explanation in the map."
+        },
+        "codeatlas.gutter.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Mark explained code with an icon in the gutter."
+        },
+        "codeatlas.followCursor": {
+          "type": "boolean",
+          "default": true,
+          "description": "While the map is open, show the explanation for the code under the cursor as you move through a file."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "npm run build -w @codeatlas/viewer && node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "npm run build && vscode-test",
+    "package": "npm run build && vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "~1.90.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

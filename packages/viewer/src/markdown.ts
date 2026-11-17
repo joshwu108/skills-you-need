@@ -25,7 +25,9 @@ const FENCE = /^\s*```\s*([\w+-]*)\s*$/;
 const HEADING = /^(#{1,6})\s+(.*)$/;
 const BULLET = /^\s*[-*+]\s+(.*)$/;
 const NUMBERED = /^\s*\d+[.)]\s+(.*)$/;
-const INLINE = /(`[^`]+`)|(\*\*[^*]+?\*\*)|(\*[^*\s][^*]*?\*)|(\[[^\]]+\]\([^)\s]+\))/;
+// The link label and target are length-bounded so a long run of unclosed
+// brackets cannot make matching quadratic.
+const INLINE = /(`[^`]+`)|(\*\*[^*]+?\*\*)|(\*[^*\s][^*]*?\*)|(\[[^\]]{1,300}\]\([^)\s]{1,2000}\))/;
 const SAFE_LINK = /^https?:\/\//i;
 
 export function parseInline(text: string): Inline[] {

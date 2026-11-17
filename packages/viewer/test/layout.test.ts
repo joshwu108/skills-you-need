@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import { buildIndex, viewOf } from '../src/graph';
 import { GHOST_WIDTH, NODE_HEIGHT, NODE_WIDTH, edgeLabel, layoutView, smoothPath } from '../src/layout';
-import { anchorLabel, editorUrl, isEditorScheme } from '../src/links';
+import { anchorLabel, editorUrl, isEditorScheme, isSafeRelativePath } from '../src/links';
 import { SAMPLE } from './fixture';
 
 const index = buildIndex(SAMPLE);
@@ -72,6 +72,14 @@ describe('links', () => {
     expect(anchorLabel(anchor)).toBe('src/my file.py:12–20');
     expect(anchorLabel({ file: 'a.py', startLine: 3, endLine: 3 })).toBe('a.py:3');
     expect(anchorLabel({ file: 'a.py' })).toBe('a.py');
+  });
+
+  test('refuses a path that would leave the repository, and a line that is not a number', () => {
+    expect(editorUrl('vscode', '/r', { file: '../../.ssh/id_rsa', startLine: 1 })).toBeNull();
+    expect(editorUrl('vscode', '/r', { file: '/etc/passwd' })).toBeNull();
+    expect(editorUrl('vscode', '/r', { file: 'a.py', startLine: '1?x' as unknown as number })).toBe('vscode://file/r/a.py:1');
+    expect(isSafeRelativePath('src/a.py')).toBe(true);
+    for (const file of ['C:/x', 'a\\b', 'a/../b', '', 7]) expect(isSafeRelativePath(file)).toBe(false);
   });
 
   test('accepts only known editor schemes', () => {

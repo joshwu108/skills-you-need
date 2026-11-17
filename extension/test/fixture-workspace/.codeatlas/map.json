@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "title": "Fixture",
+  "summary": "A tiny order engine used by the extension's tests.",
+  "nodes": [
+    {
+      "id": "engine",
+      "parent": null,
+      "kind": "service",
+      "title": "Engine",
+      "summary": "Matches orders.",
+      "explanation": "Owns the `book`.",
+      "anchors": [
+        {
+          "file": "src/engine.py",
+          "symbol": "Engine",
+          "startLine": 10,
+          "endLine": 22,
+          "hash": "b5ea13e77c4bee85"
+        }
+      ]
+    },
+    {
+      "id": "engine.step",
+      "parent": "engine",
+      "kind": "function",
+      "title": "Step",
+      "summary": "Adds one order.",
+      "explanation": "Appends, then counts.",
+      "anchors": [
+        {
+          "file": "src/engine.py",
+          "symbol": "Engine.step",
+          "startLine": 20,
+          "endLine": 22,
+          "hash": "96732d2cff0b0edc"
+        }
+      ]
+    },
+    {
+      "id": "engine.fee",
+      "parent": "engine",
+      "kind": "function",
+      "title": "Fee",
+      "summary": "Fee for a notional.",
+      "explanation": "Flat rate.",
+      "anchors": [
+        {
+          "file": "src/engine.py",
+          "symbol": "Engine.fee",
+          "startLine": 16,
+          "endLine": 18,
+          "hash": "8803e41d3fe2e43e"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "engine.step",
+      "to": "engine.fee",
+      "label": "notional"
+    }
+  ]
+}

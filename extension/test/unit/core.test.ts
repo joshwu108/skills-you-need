@@ -1,0 +1,162 @@
+import { describe, expect, test } from 'vitest';
+
+import { isOutOfDate, locate, narrowestAt } from '../../src/core/locate';
+import { isSafeRelativePath, parseMap } from '../../src/core/parseMap';
+import { hashLines, resolveAnchor } from '../../src/core/resolve';
+
+const SOURCE = ['import os', '', 'def f(x):', '    return x + 1', '', 'def g():', '    return f(2)'];
+const F_HASH = hashLines(SOURCE.slice(2, 4));
+
+describe('hashLines', () => {
+  test('matches the hash the Python tools write', () => {
+    // Expected values computed by atlas.anchors.hash_lines.
+    expect(hashLines(['def f(x):  ', '    return x + 1\t', ''])).toBe('64545701caa5b428');
+    expect(hashLines(['naïve = "é"'])).toBe('8778be493e79ea8c');
+  });
+
+  test('strips only trailing spaces and tabs, as the Python tools do', () => {
+    // A form feed and a no-break space are content, not trailing whitespace.
+    expect(hashLines(['a\x0c ', 'b\u00a0'])).toBe('9ea111b436044941');
+    expect(hashLines(['a\x0c'])).not.toBe(hashLines(['a']));
+  });
+
+  test('ignores trailing whitespace only', () => {
+    expect(hashLines(['a = 1  '])).toBe(hashLines(['a = 1']));
+    expect(hashLines(['  a = 1'])).not.toBe(hashLines(['a = 1']));
+  });
+});
+
+describe('resolveAnchor', () => {
+  const anchor = { file: 'a.py', startLine: 3, endLine: 4, hash: F_HASH };
+
+  test('unchanged code is ok', () => {
+    expect(resolveAnchor(SOURCE, anchor)).toEqual({ anchor, startLine: 3, endLine: 4, status: 'ok' });
+  });
+
+  test('code pushed down by new lines is followed', () => {
+    const edited = ['# one', '# two', ...SOURCE];
+    expect(resolveAnchor(edited, anchor)).toMatchObject({ startLine: 5, endLine: 6, status: 'moved' });
+  });
+
+  test('of two identical blocks the nearer one wins', () => {
+    const doubled = [...SOURCE.slice(2, 4), 'x = 1', 'y = 2', 'z = 3', ...SOURCE.slice(2, 4)];
+    expect(resolveAnchor(doubled, { ...anchor, startLine: 6, endLine: 7 })).toMatchObject({ startLine: 6, status: 'ok' });
+    expect(resolveAnchor(doubled, { ...anchor, startLine: 5, endLine: 6 })).toMatchObject({ startLine: 6, status: 'moved' });
+  });
+
+  test('edited code keeps its place and is flagged', () => {
+    const edited = SOURCE.map((line) => line.replace('x + 1', 'x + 2'));
+    expect(resolveAnchor(edited, anchor)).toMatchObject({ startLine: 3, endLine: 4, status: 'changed' });
+  });
+
+  test('a range past the end of a shortened file is clamped', () => {
+    expect(resolveAnchor(['only line'], { ...anchor, startLine: 40, endLine: 60 })).toMatchObject({
+      startLine: 1,
+      endLine: 1,
+      status: 'changed',
+    });
+  });
+
+  test('the search for moved code is skipped when it would cost too much', () => {
+    const big = Array.from({ length: 5000 }, (_, i) => `x${i} = ${i}`);
+    const wide = { file: 'a.py', startLine: 1, endLine: 2500, hash: hashLines(big.slice(0, 2500)) };
+    expect(resolveAnchor(big, wide)).toMatchObject({ status: 'ok' });
+    // Shifted by one line: findable in principle, but 2501 windows of 2500 lines is too much.
+    expect(resolveAnchor(['# shifted', ...big], wide)).toMatchObject({ startLine: 1, endLine: 2500, status: 'changed' });
+  });
+
+  test('an anchor that was never stamped is used as written', () => {
+    expect(resolveAnchor(SOURCE, { file: 'a.py', startLine: 6, endLine: 7 })).toMatchObject({ startLine: 6, endLine: 7, status: 'unstamped' });
+  });
+
+  test('anchors without a usable range resolve to nothing', () => {
+    expect(resolveAnchor(SOURCE, { file: 'a.py', symbol: 'f' })).toBeUndefined();
+    expect(resolveAnchor(SOURCE, { file: 'a.py', startLine: 4, endLine: 3 })).toBeUndefined();
+    expect(resolveAnchor(SOURCE, { file: 'a.py', startLine: 0, endLine: 3 })).toBeUndefined();
+    expect(resolveAnchor([], anchor)).toBeUndefined();
+  });
+});
+
+const MAP = {
+  version: 1,
+  title: 'T',
+  nodes: [
+    { id: 'mod', parent: null, kind: 'module', title: 'Module', anchors: [{ file: 'a.py', startLine: 1, endLine: 7, hash: hashLines(SOURCE) }] },
+    { id: 'mod.f', parent: 'mod', kind: 'function', title: 'f', anchors: [{ file: 'a.py', startLine: 3, endLine: 4, hash: F_HASH }] },
+    { id: 'mod.g', parent: 'mod', kind: 'function', title: 'g', stale: true, anchors: [{ file: 'a.py', startLine: 6, endLine: 7, hash: hashLines(SOURCE.slice(5, 7)) }] },
+    { id: 'other', parent: null, kind: 'module', title: 'Other', anchors: [{ file: 'b.py', startLine: 1, endLine: 2 }] },
+  ],
+} as const;
+
+describe('locate', () => {
+  const map = JSON.parse(JSON.stringify(MAP));
+
+  test('returns this file\'s nodes, outermost first', () => {
+    expect(locate(map, 'a.py', SOURCE).map((l) => l.node.id)).toEqual(['mod', 'mod.f', 'mod.g']);
+    expect(locate(map, 'c.py', SOURCE)).toEqual([]);
+  });
+
+  test('narrowestAt picks the most specific node', () => {
+    const located = locate(map, 'a.py', SOURCE);
+    expect(narrowestAt(located, 4)?.node.id).toBe('mod.f');
+    expect(narrowestAt(located, 1)?.node.id).toBe('mod');
+    expect(narrowestAt(located, 99)).toBeUndefined();
+  });
+
+  test('a node is out of date when flagged stale or when its code changed', () => {
+    const edited = SOURCE.map((line) => line.replace('x + 1', 'x + 2'));
+    const byId = Object.fromEntries(locate(map, 'a.py', edited).map((l) => [l.node.id, isOutOfDate(l)]));
+    expect(byId).toEqual({ mod: true, 'mod.f': true, 'mod.g': true });
+    const fresh = Object.fromEntries(locate(map, 'a.py', SOURCE).map((l) => [l.node.id, isOutOfDate(l)]));
+    expect(fresh).toEqual({ mod: false, 'mod.f': false, 'mod.g': true });
+  });
+});
+
+describe('parseMap', () => {
+  test('reads a well-formed map', () => {
+    const result = parseMap(JSON.stringify({ ...MAP, summary: 'S', edges: [{ from: 'mod.f', to: 'mod.g', label: 'x' }] }));
+    expect(result).toMatchObject({ ok: true, dropped: 0 });
+    if (!result.ok) return;
+    expect(result.map.nodes).toHaveLength(4);
+    expect(result.map.edges).toEqual([{ from: 'mod.f', to: 'mod.g', label: 'x' }]);
+    expect(result.map.nodes[2]).toMatchObject({ stale: true });
+  });
+
+  test('rejects files that are not a map', () => {
+    expect(parseMap('{nope')).toMatchObject({ ok: false });
+    expect(parseMap('[]')).toMatchObject({ ok: false });
+    expect(parseMap('{"version":1}')).toMatchObject({ ok: false });
+    expect(parseMap('{"version":1,"nodes":[{"bad":true}]}')).toMatchObject({ ok: false });
+    const future = parseMap('{"version":2,"nodes":[]}');
+    expect(future.ok === false && future.error).toContain('version 2');
+  });
+
+  test('drops malformed entries and keeps the rest', () => {
+    const result = parseMap(
+      JSON.stringify({
+        version: 1,
+        nodes: [
+          { id: 'a', parent: null, kind: 'step', title: 'A', anchors: [{ file: '../../etc/passwd', startLine: 1, endLine: 2 }, { file: 'ok.py', startLine: 5, endLine: 2 }] },
+          { id: 'a', parent: null, kind: 'step', title: 'Duplicate' },
+          { id: 'b', parent: 7, kind: 'widget', title: 'Bad kind' },
+          'not a node',
+        ],
+        edges: [{ from: 'a', to: 'missing' }, { from: 'a', to: 'a' }],
+      }),
+    );
+    expect(result).toMatchObject({ ok: true, dropped: 6 });
+    if (!result.ok) return;
+    expect(result.map.title).toBe('Code map');
+    expect(result.map.nodes).toHaveLength(1);
+    // The escaping anchor is gone; the inverted range is kept as a file-only anchor.
+    expect(result.map.nodes[0]?.anchors).toEqual([{ file: 'ok.py' }]);
+    expect(result.map.edges).toEqual([]);
+  });
+
+  test('refuses paths that leave the workspace', () => {
+    for (const file of ['/etc/passwd', '../x', 'a/../../x', 'C:/x', 'a\\b', '', 7]) {
+      expect(isSafeRelativePath(file)).toBe(false);
+    }
+    expect(isSafeRelativePath('src/a.py')).toBe(true);
+  });
+});

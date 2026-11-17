@@ -15,13 +15,26 @@ export function isEditorScheme(value: unknown): value is (typeof EDITORS)[number
   return EDITORS.some((editor) => editor.scheme === value);
 }
 
-/** `scheme://file/<absolute path>:<line>`, the form VS Code and its forks register. */
-export function editorUrl(scheme: string, root: string, anchor: Anchor): string {
+/** True for a path that stays inside the repository: relative, forward slashes, no `..`. */
+export function isSafeRelativePath(file: unknown): file is string {
+  if (typeof file !== 'string' || file === '' || file.includes('\\') || file.startsWith('/')) return false;
+  const parts = file.split('/');
+  return !(parts[0] ?? '').includes(':') && !parts.includes('..');
+}
+
+/**
+ * `scheme://file/<absolute path>:<line>`, the form VS Code and its forks
+ * register. Returns null for an anchor whose path would leave the repository,
+ * so a crafted map cannot make a link open some other file.
+ */
+export function editorUrl(scheme: string, root: string, anchor: Anchor): string | null {
+  if (!isSafeRelativePath(anchor.file)) return null;
   const base = root.replace(/\\/g, '/').replace(/\/+$/, '');
   const absolute = `${base}/${anchor.file}`;
   const path = absolute.startsWith('/') ? absolute : `/${absolute}`;
   const encoded = path.split('/').map(encodeURIComponent).join('/').replace(/%3A/g, ':');
-  return `${scheme}://file${encoded}:${anchor.startLine ?? 1}`;
+  const line = Number.isInteger(anchor.startLine) && (anchor.startLine as number) >= 1 ? anchor.startLine : 1;
+  return `${scheme}://file${encoded}:${line}`;
 }
 
 export function anchorLabel(anchor: Anchor): string {

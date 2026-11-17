@@ -30,6 +30,13 @@ describe('parseInline', () => {
     expect(parseInline('[x](vscode://file/etc/passwd)')).toEqual([{ type: 'text', text: 'x' }]);
   });
 
+  test('a long run of unclosed brackets is handled in linear time', () => {
+    const hostile = '[a'.repeat(50000);
+    const started = performance.now();
+    expect(parseInline(hostile)).toEqual([{ type: 'text', text: hostile }]);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
   test('leaves arithmetic asterisks alone', () => {
     expect(parseInline('a * b * c')).toEqual([{ type: 'text', text: 'a * b * c' }]);
   });

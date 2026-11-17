@@ -4,7 +4,8 @@
   "description": "Claude Code plugin marketplace. First plugin: CodeAtlas.",
   "license": "MIT",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "extension"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

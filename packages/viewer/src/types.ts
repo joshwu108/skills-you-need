@@ -47,12 +47,3 @@ export interface AtlasData {
   /** Absolute path of the repository, used to build editor links. */
   root?: string;
 }
-
-/** What the viewer needs from its surroundings (a browser page or a webview). */
-export interface Host {
-  openAnchor(anchor: Anchor): void;
-  /** Called with the focused node id, or null at the top level. */
-  onNavigate?(nodeId: string | null): void;
-  /** Extra controls placed in the header. */
-  toolbar?: HTMLElement;
-}

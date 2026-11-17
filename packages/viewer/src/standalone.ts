@@ -52,7 +52,13 @@ function editorPicker(): { element: HTMLElement; scheme(): string } {
 }
 
 function hashNode(): string | null {
-  return location.hash.startsWith(HASH_PREFIX) ? decodeURIComponent(location.hash.slice(HASH_PREFIX.length)) : null;
+  if (!location.hash.startsWith(HASH_PREFIX)) return null;
+  try {
+    return decodeURIComponent(location.hash.slice(HASH_PREFIX.length));
+  } catch {
+    // A hand-edited fragment with a broken escape names no node.
+    return null;
+  }
 }
 
 function start(container: HTMLElement): void {
@@ -61,7 +67,8 @@ function start(container: HTMLElement): void {
   const controller = mount(container, data, {
     toolbar: picker.element,
     openAnchor: (anchor) => {
-      location.href = editorUrl(picker.scheme(), data.root ?? '', anchor);
+      const url = editorUrl(picker.scheme(), data.root ?? '', anchor);
+      if (url) location.href = url;
     },
     onNavigate: (nodeId) => {
       const hash = nodeId === null ? '' : HASH_PREFIX + encodeURIComponent(nodeId);

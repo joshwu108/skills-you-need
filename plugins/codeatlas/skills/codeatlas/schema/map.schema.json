@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/joshwu108/skills-you-need/blob/main/plugins/codeatlas/skills/codeatlas/schema/map.schema.json",
+  "title": "CodeAtlas map",
+  "description": "A hierarchy of explained nodes anchored to code, with edges between them. The checks in scripts/atlas/validate.py are authoritative; this schema mirrors them for editors.",
+  "type": "object",
+  "required": ["version", "title", "nodes"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "description": "Markdown shown on the overview." },
+    "nodes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/node" } },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+    "node": {
+      "type": "object",
+      "required": ["id", "parent", "kind", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "parent": {
+          "description": "The containing node, or null at the top level.",
+          "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+        },
+        "kind": { "enum": ["service", "module", "function", "step", "data", "external"] },
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "maxLength": 160 },
+        "explanation": { "type": "string", "description": "Markdown." },
+        "anchors": { "type": "array", "items": { "$ref": "#/$defs/anchor" } },
+        "planned": { "type": "boolean", "description": "Designed but not written yet." },
+        "stale": { "type": "boolean", "description": "Set by 'refresh' when the anchored code changed." },
+        "staleReason": { "type": "string" }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "required": ["file"],
+      "additionalProperties": false,
+      "anyOf": [{ "required": ["symbol"] }, { "required": ["startLine", "endLine"] }],
+      "dependentRequired": { "startLine": ["endLine"], "endLine": ["startLine"] },
+      "properties": {
+        "file": { "type": "string", "minLength": 1, "description": "Repository-relative path with forward slashes." },
+        "symbol": { "type": "string", "minLength": 1 },
+        "startLine": { "type": "integer", "minimum": 1 },
+        "endLine": { "type": "integer", "minimum": 1 },
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{16}$", "description": "Written by 'stamp'." }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "$ref": "#/$defs/id" },
+        "to": { "$ref": "#/$defs/id" },
+        "label": { "type": "string" },
+        "kind": { "enum": ["call", "data", "event"] }
+      }
+    }
+  }
+}

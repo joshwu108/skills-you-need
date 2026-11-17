@@ -1,0 +1,10 @@
+{
+  "name": "codeatlas",
+  "version": "0.1.0",
+  "description": "A clickable visual map of your codebase: drill-down flow diagrams with every box explained and linked to its lines of code.",
+  "author": { "name": "joshwu108" },
+  "homepage": "https://github.com/joshwu108/skills-you-need",
+  "repository": "https://github.com/joshwu108/skills-you-need",
+  "license": "MIT",
+  "keywords": ["documentation", "diagrams", "onboarding", "code-navigation"]
+}

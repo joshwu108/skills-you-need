@@ -1,0 +1,458 @@
+{
+  "$schema": "../plugins/codeatlas/skills/codeatlas/schema/map.schema.json",
+  "version": 1,
+  "title": "CodeAtlas",
+  "summary": "CodeAtlas keeps a map of a codebase in `.codeatlas/map.json`: a tree of explained nodes anchored to lines of code, with edges between them.\n\nClaude writes the map by following the skill. Python tools check it, tie it to the code and build a standalone viewer. A hook marks nodes out of date when their code is edited.",
+  "nodes": [
+    {
+      "id": "claude",
+      "parent": null,
+      "kind": "external",
+      "title": "Claude Code",
+      "summary": "Reads the skill, reads the user's code, and writes the map.",
+      "explanation": "Claude Code is the author of every map. It loads `SKILL.md` when the user asks for a visual walkthrough, reads the repository, and writes nodes and edges into the map file.\n\nIt never computes line hashes or stale flags itself. Those come from the map tools, so the map's link to the code does not depend on the model counting lines correctly."
+    },
+    {
+      "id": "skill",
+      "parent": null,
+      "kind": "module",
+      "title": "Skill instructions",
+      "summary": "Tells Claude how to choose a mode, shape the map and write each explanation.",
+      "explanation": "`SKILL.md` is the only part of the plugin the model reads. It defines four modes (**map**, **explain**, **plan**, **refresh**), the map file format, and the writing rules for a node.\n\nThe rules that matter most for quality are in *Writing a node*: explain what the code does not make obvious, and describe only code that was actually read.\n\nScript paths use `${CLAUDE_SKILL_DIR}`, which Claude Code replaces with the installed skill folder, so the instructions work from any install location.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/SKILL.md",
+          "startLine": 1,
+          "endLine": 24,
+          "hash": "2a92ab34974d040c"
+        }
+      ]
+    },
+    {
+      "id": "map",
+      "parent": null,
+      "kind": "data",
+      "title": "Map file",
+      "summary": "`.codeatlas/map.json`: nodes, their parents, edges, and anchors to code.",
+      "explanation": "The map is the contract between the author and both readers.\n\n- A node's `parent` gives the hierarchy, and a node's children are its sub-flow.\n- An anchor is a file plus a line range and a hash of those lines.\n- Paths are relative to the repository root, so the file can be committed and shared.\n\nThe constants every tool agrees on (kinds, the id pattern, file names) live in `model.py`, alongside `load_map` and `save_map`.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/model.py",
+          "symbol": "NODE_KINDS",
+          "startLine": 19,
+          "endLine": 19,
+          "hash": "fb927068403dd547"
+        },
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/schema/map.schema.json",
+          "startLine": 1,
+          "endLine": 18,
+          "hash": "72c6dfc2e22dfffe"
+        }
+      ]
+    },
+    {
+      "id": "tools",
+      "parent": null,
+      "kind": "service",
+      "title": "Map tools",
+      "summary": "The `codeatlas.py` command: validate the map, tie it to code, build the viewer.",
+      "explanation": "One command with a subcommand per job. `main` parses arguments and turns a `MapError` into exit code 2; each subcommand returns 0 when the map is fine and 1 when it needs attention, so Claude can tell \"fix the map\" apart from \"the command could not run\".\n\nEvery function in the `atlas` package takes a map and returns a new one. Nothing mutates its input, and only the command layer writes files.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py",
+          "symbol": "main",
+          "startLine": 34,
+          "endLine": 40,
+          "hash": "a64e3b584365e675"
+        }
+      ]
+    },
+    {
+      "id": "tools.build",
+      "parent": "tools",
+      "kind": "function",
+      "title": "Build",
+      "summary": "Stamps new anchors, refreshes the rest, validates strictly, then writes the viewer.",
+      "explanation": "`build` is the one command Claude runs after changing the map.\n\n1. `stamp` fills in line ranges and hashes for anchors that have none. An anchor that cannot be resolved stops the build.\n2. `refresh` re-checks every other anchor, so the page shows current line ranges and stale flags.\n3. `validate_map` runs in strict mode, which also checks anchors against the files.\n4. Only if all of that is clean does it save the map and write `atlas.html`.\n\nA failed build writes nothing, so a broken map never replaces a working viewer. It also adds `atlas.html` to `.codeatlas/.gitignore`, because the page embeds absolute paths.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py",
+          "symbol": "_build",
+          "startLine": 91,
+          "endLine": 116,
+          "hash": "06de1f52ce8d086b"
+        }
+      ]
+    },
+    {
+      "id": "tools.validate",
+      "parent": "tools",
+      "kind": "function",
+      "title": "Validate",
+      "summary": "Finds structural errors and readability warnings in a map.",
+      "explanation": "`validate_map` returns a list of `Issue` values, errors first, each with a path such as `nodes[3].kind` so the author can find it.\n\n**Errors** stop the viewer from working: duplicate ids, a parent cycle, an edge to a missing node, an anchor that escapes the repository. **Warnings** are maps that load but read badly: more than 12 boxes in one view, a leaf with no code, an unknown key (usually a typo such as `start_line`).\n\nStrict mode adds `_check_against_files`: every anchor must have a hash and point inside a file that exists.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/validate.py",
+          "symbol": "validate_map",
+          "startLine": 41,
+          "endLine": 53,
+          "hash": "3aae28742ec37d47"
+        }
+      ]
+    },
+    {
+      "id": "tools.symbols",
+      "parent": "tools",
+      "kind": "function",
+      "title": "Find symbol",
+      "summary": "Turns a name like `Engine.step` into a line range.",
+      "explanation": "`find_symbol` lets Claude anchor by name and leaves the line counting to code.\n\nPython files are parsed with `ast`, so qualified names and spans are exact and decorators are included. Other languages use `_DEFINITION`, a search for definition keywords, followed by `_block_end`, which matches braces or falls back to indentation.\n\nThat second path is a heuristic. When it cannot find a symbol, `stamp` reports an error and the author gives explicit lines. An unqualified name that matches two definitions returns `None` and is never guessed.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/symbols.py",
+          "symbol": "find_symbol",
+          "startLine": 46,
+          "endLine": 61,
+          "hash": "4ef6b2f7b6e2351c"
+        }
+      ]
+    },
+    {
+      "id": "tools.stamp",
+      "parent": "tools",
+      "kind": "function",
+      "title": "Stamp",
+      "summary": "Writes each anchor's line range and a hash of those lines.",
+      "explanation": "`stamp` records what the code looked like when a node was explained.\n\nBy default it touches only anchors with no hash, so rewriting one node cannot hide that another is out of date. Naming nodes with `--node` re-stamps them and clears their stale flag; that is how Claude says \"I have rewritten this one\".\n\n`hash_lines` ignores trailing whitespace, so a formatter that only trims line ends does not mark anything stale.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/anchors.py",
+          "symbol": "stamp",
+          "startLine": 81,
+          "endLine": 124,
+          "hash": "4cf289f151c4d843"
+        }
+      ]
+    },
+    {
+      "id": "tools.refresh",
+      "parent": "tools",
+      "kind": "function",
+      "title": "Refresh",
+      "summary": "Follows code that moved and marks nodes stale when their code changed.",
+      "explanation": "`refresh` compares every anchor with the working tree. `_refresh_anchor` tries, in order:\n\n1. The hash still matches at the recorded lines: nothing to do.\n2. A block with the same hash exists elsewhere in the file: the code **moved**, so the lines are updated silently.\n3. The symbol still resolves: the code **changed**, so the range is re-resolved and the node is marked stale.\n4. Otherwise the code is **missing**.\n\nAfter a refresh every anchor's hash matches its lines again. Staleness is kept on the node, which is why the same edit is not reported twice.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/anchors.py",
+          "symbol": "refresh",
+          "startLine": 159,
+          "endLine": 188,
+          "hash": "2932860ec09554a8"
+        },
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/anchors.py",
+          "symbol": "_refresh_anchor",
+          "startLine": 191,
+          "endLine": 225,
+          "hash": "945d58bfe2a9374c"
+        }
+      ]
+    },
+    {
+      "id": "tools.html",
+      "parent": "tools",
+      "kind": "function",
+      "title": "Write viewer page",
+      "summary": "Inlines the map, script and stylesheet into one HTML file.",
+      "explanation": "`build_html` produces a page that works from disk with no server.\n\nExplanations are written by a model from repository content, so they are treated as untrusted. `_inert_json` escapes `<`, `>` and `&` so the embedded map cannot close its script element, and the content security policy allows exactly one script and one stylesheet, identified by hash. Nothing is fetched.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/viewer.py",
+          "symbol": "build_html",
+          "startLine": 39,
+          "endLine": 54,
+          "hash": "9292983a42662b8f"
+        }
+      ]
+    },
+    {
+      "id": "hook",
+      "parent": null,
+      "kind": "service",
+      "title": "Edit hook",
+      "summary": "After each edit by Claude, refreshes the anchors in that file.",
+      "explanation": "`run_hook` runs after every Edit or Write, so it exits early unless the edited file belongs to a repository with a map that anchors it.\n\nIt calls `refresh` for that one file. Moved code is saved quietly. Changed code is saved as stale and returned to Claude as `additionalContext`, naming the nodes whose explanations now need rewriting.\n\nIt ignores edits inside `.codeatlas/` so that writing the map does not trigger itself.",
+      "anchors": [
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/hook.py",
+          "symbol": "run_hook",
+          "startLine": 19,
+          "endLine": 64,
+          "hash": "3cff3a862be79cdc"
+        },
+        {
+          "file": "plugins/codeatlas/hooks/hooks.json",
+          "startLine": 1,
+          "endLine": 15,
+          "hash": "ce51c7cba910cf28"
+        }
+      ]
+    },
+    {
+      "id": "viewer",
+      "parent": null,
+      "kind": "service",
+      "title": "Viewer",
+      "summary": "The diagram and reading panel, shared by the page and the extension.",
+      "explanation": "The viewer is written once in TypeScript and bundled by `build.mjs` into the skill's assets, so a plugin install needs no build step.\n\nIt holds two pieces of state: which level is on screen and which node in it is selected. Everything else is derived. Its surroundings are abstracted as a `Host`, which is the only difference between the standalone page (editor URL links) and a VS Code webview (messages to the extension).",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/app.ts",
+          "symbol": "mount",
+          "startLine": 29,
+          "endLine": 123,
+          "hash": "939eca4ee520f1d3"
+        }
+      ]
+    },
+    {
+      "id": "viewer.entry",
+      "parent": "viewer",
+      "kind": "function",
+      "title": "Page entry",
+      "summary": "Reads the embedded map and connects the viewer to the browser.",
+      "explanation": "`start` parses the inert JSON block, builds the editor picker, and mounts the viewer.\n\nThe focused node is mirrored in the URL fragment (`#/engine.step`), so a view can be bookmarked and the back button walks up the levels. Code links are `vscode://file/<path>:<line>` URLs, with the scheme taken from the picker so Cursor and other forks work.",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/standalone.ts",
+          "symbol": "start",
+          "startLine": 58,
+          "endLine": 78,
+          "hash": "bcb53814f5bcb452"
+        }
+      ]
+    },
+    {
+      "id": "viewer.views",
+      "parent": "viewer",
+      "kind": "function",
+      "title": "Build a view",
+      "summary": "Picks the nodes for one level and lifts edges onto them.",
+      "explanation": "`viewOf` turns the flat map into what one screen shows: the children of a node.\n\nEdges are stored between nodes at any depth, so each endpoint is **lifted** to the visible node that contains it. An endpoint outside the current sub-flow becomes a *ghost*: its outermost ancestor that is not also an ancestor of the view. That keeps a sub-flow's context on screen without drawing the whole system.\n\nEdges that lift to the same pair are merged and their labels combined.",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/graph.ts",
+          "symbol": "viewOf",
+          "startLine": 98,
+          "endLine": 134,
+          "hash": "5777d2b79019009e"
+        },
+        {
+          "file": "packages/viewer/src/graph.ts",
+          "symbol": "lift",
+          "startLine": 80,
+          "endLine": 96,
+          "hash": "8afc538207863ed2"
+        }
+      ]
+    },
+    {
+      "id": "viewer.layout",
+      "parent": "viewer",
+      "kind": "function",
+      "title": "Lay out",
+      "summary": "Positions boxes in layers and routes the edges between them.",
+      "explanation": "`layoutView` hands the view to dagre, a layered graph layout, flowing top to bottom.\n\nBoxes have fixed sizes, so nothing needs measuring before layout. Edge labels are given a width estimated from their character count, which lets dagre leave room for them. `smoothPath` then rounds each route into quadratic curves.",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/layout.ts",
+          "symbol": "layoutView",
+          "startLine": 50,
+          "endLine": 105,
+          "hash": "f29034cb56087973"
+        }
+      ]
+    },
+    {
+      "id": "viewer.diagram",
+      "parent": "viewer",
+      "kind": "function",
+      "title": "Draw diagram",
+      "summary": "Renders boxes as buttons over an SVG edge layer, with pan and zoom.",
+      "explanation": "`createDiagram` draws nodes as real `button` elements so the diagram works from the keyboard, and edges as SVG paths underneath.\n\nPan and zoom are one CSS transform on the stage. The diagram re-fits when the window resizes until the reader pans or zooms; after that their position is left alone. Fitting never shrinks below `MIN_FIT_SCALE`: a flow too large for the window starts at its top-left corner and is panned, because text scaled smaller than that cannot be read.\n\nA box with code has two controls: the body focuses the node and the corner button opens its code directly.",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/diagram.ts",
+          "symbol": "createDiagram",
+          "startLine": 126,
+          "endLine": 258,
+          "hash": "4ce6fa846e391e6f"
+        }
+      ]
+    },
+    {
+      "id": "viewer.panel",
+      "parent": "viewer",
+      "kind": "function",
+      "title": "Reading panel",
+      "summary": "Shows the focused node's explanation, its code links and its parts.",
+      "explanation": "`createPanel` renders the text side: kind, title, summary, an out-of-date notice when the node is stale, the explanation, then the code anchors as buttons.\n\nSummaries go through the inline Markdown renderer, so `code` in a one-line summary is formatted here even though the diagram shows it as plain text.\n\nFor a node with children it also lists them, which gives a second, linear way through the same flow for readers who do not use the diagram.",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/panel.ts",
+          "symbol": "createPanel",
+          "startLine": 67,
+          "endLine": 118,
+          "hash": "87b5a6dd01530e50"
+        }
+      ]
+    },
+    {
+      "id": "viewer.markdown",
+      "parent": "viewer",
+      "kind": "function",
+      "title": "Render Markdown",
+      "summary": "Renders a safe Markdown subset by building DOM nodes.",
+      "explanation": "`renderMarkdown` supports the subset the skill tells Claude to use.\n\nIt parses to a plain tree and builds elements with `textContent`. No HTML string is ever assigned, so text in an explanation cannot become markup. Links are kept only when they start with `http://` or `https://`; any other target keeps its label and loses its link.",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/markdown.ts",
+          "symbol": "renderMarkdown",
+          "startLine": 148,
+          "endLine": 174,
+          "hash": "ba67c37c9a2ff247"
+        }
+      ]
+    },
+    {
+      "id": "editor",
+      "parent": null,
+      "kind": "external",
+      "title": "Editor",
+      "summary": "VS Code or a fork, opened at the anchored line.",
+      "explanation": "The editor is where every code link lands. The standalone page reaches it through the URL scheme the editor registers with the operating system, so no extension is needed for links from a diagram to code.\n\nGoing the other way, from a line of code to its visual, needs the CodeAtlas extension."
+    },
+    {
+      "id": "extension",
+      "parent": null,
+      "kind": "service",
+      "title": "VS Code extension",
+      "summary": "Shows a node's visual from a line of code, inside the editor.",
+      "planned": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "claude",
+      "to": "skill",
+      "label": "loads"
+    },
+    {
+      "from": "claude",
+      "to": "map",
+      "label": "nodes and edges"
+    },
+    {
+      "from": "claude",
+      "to": "tools.build",
+      "label": "build"
+    },
+    {
+      "from": "claude",
+      "to": "hook",
+      "label": "edit events"
+    },
+    {
+      "from": "tools.build",
+      "to": "tools.stamp",
+      "label": "new anchors"
+    },
+    {
+      "from": "tools.build",
+      "to": "tools.validate",
+      "label": "stamped map"
+    },
+    {
+      "from": "tools.build",
+      "to": "tools.html",
+      "label": "valid map"
+    },
+    {
+      "from": "tools.stamp",
+      "to": "tools.symbols",
+      "label": "symbol names"
+    },
+    {
+      "from": "tools.refresh",
+      "to": "tools.symbols",
+      "label": "symbol names"
+    },
+    {
+      "from": "tools.stamp",
+      "to": "map",
+      "label": "line ranges, hashes"
+    },
+    {
+      "from": "tools.refresh",
+      "to": "map",
+      "label": "stale flags"
+    },
+    {
+      "from": "hook",
+      "to": "tools.refresh",
+      "label": "edited file"
+    },
+    {
+      "from": "tools.html",
+      "to": "viewer.entry",
+      "label": "inlined map"
+    },
+    {
+      "from": "viewer.entry",
+      "to": "viewer.views",
+      "label": "map"
+    },
+    {
+      "from": "viewer.views",
+      "to": "viewer.layout",
+      "label": "view"
+    },
+    {
+      "from": "viewer.layout",
+      "to": "viewer.diagram",
+      "label": "boxes, routes"
+    },
+    {
+      "from": "viewer.views",
+      "to": "viewer.panel",
+      "label": "focused node"
+    },
+    {
+      "from": "viewer.panel",
+      "to": "viewer.markdown",
+      "label": "explanation"
+    },
+    {
+      "from": "viewer.diagram",
+      "to": "editor",
+      "label": "file and line"
+    },
+    {
+      "from": "viewer.panel",
+      "to": "editor",
+      "label": "file and line"
+    },
+    {
+      "from": "map",
+      "to": "extension",
+      "label": "watched file"
+    },
+    {
+      "from": "extension",
+      "to": "editor",
+      "label": "reveal range"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@codeatlas/viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Flow-diagram viewer shared by the CodeAtlas standalone page and the VS Code extension.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^1.1.4"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^3.0.0",
+    "esbuild": "^0.25.0",
+    "jsdom": "^26.0.0",
+    "playwright-core": "^1.65.1",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

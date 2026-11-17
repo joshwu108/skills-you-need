@@ -1,0 +1,14 @@
+{
+  "name": "skills-you-need",
+  "owner": { "name": "joshwu108" },
+  "description": "Claude Code plugins for understanding and navigating code.",
+  "plugins": [
+    {
+      "name": "codeatlas",
+      "source": "./plugins/codeatlas",
+      "description": "A clickable visual map of your codebase: drill-down flow diagrams with every box explained and linked to its lines of code.",
+      "category": "development",
+      "tags": ["documentation", "diagrams", "onboarding", "code-navigation"]
+    }
+  ]
+}

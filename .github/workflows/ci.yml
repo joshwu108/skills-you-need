@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  map-tools:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.9', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install pytest pytest-cov
+      - run: python -m pytest --cov=skills/codeatlas/scripts --cov-fail-under=80
+        working-directory: plugins/codeatlas
+      - name: The repository's own map still matches its code
+        run: python plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py refresh
+
+  viewer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Committed bundles match the sources
+        run: git diff --exit-code -- plugins/codeatlas/skills/codeatlas/assets extension/media

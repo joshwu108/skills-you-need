@@ -24,7 +24,7 @@
           "file": "plugins/codeatlas/skills/codeatlas/SKILL.md",
           "startLine": 1,
           "endLine": 24,
-          "hash": "2a92ab34974d040c"
+          "hash": "3fb92f4ebdb8853b"
         }
       ]
     },
@@ -39,8 +39,8 @@
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/model.py",
           "symbol": "NODE_KINDS",
-          "startLine": 19,
-          "endLine": 19,
+          "startLine": 21,
+          "endLine": 21,
           "hash": "fb927068403dd547"
         },
         {
@@ -62,8 +62,8 @@
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py",
           "symbol": "main",
-          "startLine": 34,
-          "endLine": 40,
+          "startLine": 45,
+          "endLine": 51,
           "hash": "a64e3b584365e675"
         }
       ]
@@ -73,15 +73,22 @@
       "parent": "tools",
       "kind": "function",
       "title": "Build",
-      "summary": "Stamps new anchors, refreshes the rest, validates strictly, then writes the viewer.",
-      "explanation": "`build` is the one command Claude runs after changing the map.\n\n1. `stamp` fills in line ranges and hashes for anchors that have none. An anchor that cannot be resolved stops the build.\n2. `refresh` re-checks every other anchor, so the page shows current line ranges and stale flags.\n3. `validate_map` runs in strict mode, which also checks anchors against the files.\n4. Only if all of that is clean does it save the map and write `atlas.html`.\n\nA failed build writes nothing, so a broken map never replaces a working viewer. It also adds `atlas.html` to `.codeatlas/.gitignore`, because the page embeds absolute paths.",
+      "summary": "Checks the map's structure, stamps new anchors, refreshes the rest, then writes the viewer.",
+      "explanation": "`build` is the one command Claude runs after changing the map.\n\n1. `_load_sound` validates the structure first. `stamp` and `refresh` rewrite the file, so they never run on a map whose fields have the wrong types.\n2. `stamp` fills in line ranges and hashes for anchors that have none. An anchor that cannot be resolved stops the build.\n3. `refresh` re-checks every other anchor, so the page shows current line ranges and stale flags.\n4. `validate_map` runs again in strict mode, which also checks anchors against the files.\n\nOnly if all of that is clean does it save the map and write `atlas.html`. A failed build writes nothing, so a broken map never replaces a working viewer. It also adds `atlas.html` to `.codeatlas/.gitignore`, because the page embeds absolute paths.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py",
           "symbol": "_build",
-          "startLine": 91,
-          "endLine": 116,
-          "hash": "06de1f52ce8d086b"
+          "startLine": 118,
+          "endLine": 146,
+          "hash": "bd556414f1c4aead"
+        },
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py",
+          "symbol": "_load_sound",
+          "startLine": 102,
+          "endLine": 115,
+          "hash": "3d6afdad4853fd36"
         }
       ]
     },
@@ -108,14 +115,14 @@
       "kind": "function",
       "title": "Find symbol",
       "summary": "Turns a name like `Engine.step` into a line range.",
-      "explanation": "`find_symbol` lets Claude anchor by name and leaves the line counting to code.\n\nPython files are parsed with `ast`, so qualified names and spans are exact and decorators are included. Other languages use `_DEFINITION`, a search for definition keywords, followed by `_block_end`, which matches braces or falls back to indentation.\n\nThat second path is a heuristic. When it cannot find a symbol, `stamp` reports an error and the author gives explicit lines. An unqualified name that matches two definitions returns `None` and is never guessed.",
+      "explanation": "`find_symbol` lets Claude anchor by name and leaves the line counting to code.\n\nPython files are parsed with `ast`, so qualified names and spans are exact, decorators are included, and definitions inside `if` or `try` blocks are found. The parse is cached per file content because several anchors usually share a file.\n\nOther languages use a text search: `_first_definition` looks for definition keywords, then `_block_end` matches braces or falls back to indentation. Only the blocks on the way to the requested symbol are followed, and no block is followed past `MAX_BLOCK_LINES`, which keeps a file with unbalanced braces from stalling the hook.\n\nA name is never guessed. Of several definitions, the least indented wins, so a top-level `const items` beats a local one; two at the same depth return `None`, and the author gives explicit lines instead.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/symbols.py",
           "symbol": "find_symbol",
-          "startLine": 46,
-          "endLine": 61,
-          "hash": "4ef6b2f7b6e2351c"
+          "startLine": 53,
+          "endLine": 67,
+          "hash": "8d2ff2531526530e"
         }
       ]
     },
@@ -125,14 +132,14 @@
       "kind": "function",
       "title": "Stamp",
       "summary": "Writes each anchor's line range and a hash of those lines.",
-      "explanation": "`stamp` records what the code looked like when a node was explained.\n\nBy default it touches only anchors with no hash, so rewriting one node cannot hide that another is out of date. Naming nodes with `--node` re-stamps them and clears their stale flag; that is how Claude says \"I have rewritten this one\".\n\n`hash_lines` ignores trailing whitespace, so a formatter that only trims line ends does not mark anything stale.",
+      "explanation": "`stamp` records what the code looked like when a node was explained.\n\nBy default it touches only anchors with no hash, so rewriting one node cannot hide that another is out of date. Naming nodes with `--node` re-stamps them and clears their stale flag; that is how Claude says \"I have rewritten this one\".\n\n`hash_lines` ignores trailing spaces and tabs, so a formatter that only trims line ends does not mark anything stale. The stripped set is spelled out because the VS Code extension computes the same hash and the two must agree byte for byte.\n\nSource files are split on CR, LF and CRLF only (`split_lines`), matching editors and Python's own parser. A field of the wrong type is left exactly as it was.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/anchors.py",
           "symbol": "stamp",
-          "startLine": 81,
-          "endLine": 124,
-          "hash": "4cf289f151c4d843"
+          "startLine": 91,
+          "endLine": 135,
+          "hash": "a6faeb838be10679"
         }
       ]
     },
@@ -142,21 +149,21 @@
       "kind": "function",
       "title": "Refresh",
       "summary": "Follows code that moved and marks nodes stale when their code changed.",
-      "explanation": "`refresh` compares every anchor with the working tree. `_refresh_anchor` tries, in order:\n\n1. The hash still matches at the recorded lines: nothing to do.\n2. A block with the same hash exists elsewhere in the file: the code **moved**, so the lines are updated silently.\n3. The symbol still resolves: the code **changed**, so the range is re-resolved and the node is marked stale.\n4. Otherwise the code is **missing**.\n\nAfter a refresh every anchor's hash matches its lines again. Staleness is kept on the node, which is why the same edit is not reported twice.",
+      "explanation": "`refresh` compares every anchor with the working tree. `_refresh_anchor` tries, in order:\n\n1. The hash still matches at the recorded lines: nothing to do.\n2. A block with the same hash exists elsewhere in the file: the code **moved**, so the lines are updated silently.\n3. The symbol still resolves: the code **changed**, so the range is re-resolved and the node is marked stale.\n4. Otherwise the code is **missing**.\n\nStep 2 hashes every window of the file, so `_find_block` skips it above `MAX_SEARCH_WORK` (windows times block length). A very large block in a very large file is then resolved by symbol or reported as changed.\n\nAfter a refresh every anchor's hash matches its lines again. Staleness is kept on the node, which is why the same edit is not reported twice.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/anchors.py",
           "symbol": "refresh",
-          "startLine": 159,
-          "endLine": 188,
-          "hash": "2932860ec09554a8"
+          "startLine": 193,
+          "endLine": 222,
+          "hash": "30655622d1365b5f"
         },
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/anchors.py",
           "symbol": "_refresh_anchor",
-          "startLine": 191,
-          "endLine": 225,
-          "hash": "945d58bfe2a9374c"
+          "startLine": 225,
+          "endLine": 259,
+          "hash": "17dab15919a48d34"
         }
       ]
     },
@@ -166,14 +173,21 @@
       "kind": "function",
       "title": "Write viewer page",
       "summary": "Inlines the map, script and stylesheet into one HTML file.",
-      "explanation": "`build_html` produces a page that works from disk with no server.\n\nExplanations are written by a model from repository content, so they are treated as untrusted. `_inert_json` escapes `<`, `>` and `&` so the embedded map cannot close its script element, and the content security policy allows exactly one script and one stylesheet, identified by hash. Nothing is fetched.",
+      "explanation": "`build_html` produces a page that works from disk with no server.\n\nExplanations are written by a model from repository content, so they are treated as untrusted. `_inert_json` escapes `<`, `>` and `&` so the embedded map cannot close its script element, and the content security policy allows exactly one script and one stylesheet, identified by hash. Nothing is fetched.\n\nThe title is the only map text placed outside that JSON block, so it is escaped and collapsed to a single line.\n\nThe page is written with `write_text` in `model.py`, which refuses to write through a symbolic link: a repository could otherwise commit `atlas.html` as a link to a file in the user's home directory.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/viewer.py",
           "symbol": "build_html",
           "startLine": 39,
-          "endLine": 54,
-          "hash": "9292983a42662b8f"
+          "endLine": 55,
+          "hash": "304e90ab0a780e65"
+        },
+        {
+          "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/model.py",
+          "symbol": "write_text",
+          "startLine": 72,
+          "endLine": 93,
+          "hash": "8b7240cc5cb36027"
         }
       ]
     },
@@ -183,20 +197,20 @@
       "kind": "service",
       "title": "Edit hook",
       "summary": "After each edit by Claude, refreshes the anchors in that file.",
-      "explanation": "`run_hook` runs after every Edit or Write, so it exits early unless the edited file belongs to a repository with a map that anchors it.\n\nIt calls `refresh` for that one file. Moved code is saved quietly. Changed code is saved as stale and returned to Claude as `additionalContext`, naming the nodes whose explanations now need rewriting.\n\nIt ignores edits inside `.codeatlas/` so that writing the map does not trigger itself.",
+      "explanation": "`run_hook` runs after every Edit or Write, so it exits early unless the edited file belongs to a repository with a map that anchors it.\n\nIt calls `refresh` for that one file. Moved code is saved quietly. Changed code is saved as stale and returned to Claude as `additionalContext`, naming the nodes whose explanations now need rewriting.\n\nWhat the hook returns is read by Claude, and the map may come from a cloned repository. So the hook acts only on a map that passes validation, which guarantees ids match the id pattern, and it quotes and caps the ids it lists. A broken map is left for `build` and `status` to report.\n\nIt ignores edits inside `.codeatlas/` so that writing the map does not trigger itself.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/hook.py",
           "symbol": "run_hook",
-          "startLine": 19,
-          "endLine": 64,
-          "hash": "3cff3a862be79cdc"
+          "startLine": 25,
+          "endLine": 80,
+          "hash": "daa732b399c2a959"
         },
         {
           "file": "plugins/codeatlas/hooks/hooks.json",
           "startLine": 1,
           "endLine": 15,
-          "hash": "ce51c7cba910cf28"
+          "hash": "93db933a30b5e90e"
         }
       ]
     },
@@ -206,14 +220,14 @@
       "kind": "service",
       "title": "Viewer",
       "summary": "The diagram and reading panel, shared by the page and the extension.",
-      "explanation": "The viewer is written once in TypeScript and bundled by `build.mjs` into the skill's assets, so a plugin install needs no build step.\n\nIt holds two pieces of state: which level is on screen and which node in it is selected. Everything else is derived. Its surroundings are abstracted as a `Host`, which is the only difference between the standalone page (editor URL links) and a VS Code webview (messages to the extension).",
+      "explanation": "The viewer is written once in TypeScript and bundled by `build.mjs` into the skill's assets, so a plugin install needs no build step.\n\n`AtlasApp` holds two pieces of state: which level is on screen and which node in it is selected. Everything else is derived. `focus` is the single way to change it: a node with children becomes the view, and a leaf is selected inside its parent's flow.\n\nIts surroundings are abstracted as a `Host` (`host.ts`), which is the only difference between the standalone page (editor URL links) and a VS Code webview (messages to the extension).",
       "anchors": [
         {
           "file": "packages/viewer/src/app.ts",
-          "symbol": "mount",
-          "startLine": 29,
-          "endLine": 123,
-          "hash": "939eca4ee520f1d3"
+          "symbol": "AtlasApp",
+          "startLine": 32,
+          "endLine": 133,
+          "hash": "6a9bc0b9688d9be2"
         }
       ]
     },
@@ -223,14 +237,14 @@
       "kind": "function",
       "title": "Page entry",
       "summary": "Reads the embedded map and connects the viewer to the browser.",
-      "explanation": "`start` parses the inert JSON block, builds the editor picker, and mounts the viewer.\n\nThe focused node is mirrored in the URL fragment (`#/engine.step`), so a view can be bookmarked and the back button walks up the levels. Code links are `vscode://file/<path>:<line>` URLs, with the scheme taken from the picker so Cursor and other forks work.",
+      "explanation": "`start` parses the inert JSON block, builds the editor picker, and mounts the viewer.\n\nThe focused node is mirrored in the URL fragment (`#/engine.step`), so a view can be bookmarked and the back button walks up the levels. A fragment with a broken escape names no node and is ignored.\n\nCode links are `vscode://file/<path>:<line>` URLs, with the scheme taken from the picker so Cursor and other forks work. `editorUrl` returns nothing for a path that would leave the repository, so a crafted map cannot make a link open some other file.",
       "anchors": [
         {
           "file": "packages/viewer/src/standalone.ts",
           "symbol": "start",
-          "startLine": 58,
-          "endLine": 78,
-          "hash": "bcb53814f5bcb452"
+          "startLine": 64,
+          "endLine": 85,
+          "hash": "34fde6d47677138e"
         }
       ]
     },
@@ -281,14 +295,21 @@
       "kind": "function",
       "title": "Draw diagram",
       "summary": "Renders boxes as buttons over an SVG edge layer, with pan and zoom.",
-      "explanation": "`createDiagram` draws nodes as real `button` elements so the diagram works from the keyboard, and edges as SVG paths underneath.\n\nPan and zoom are one CSS transform on the stage. The diagram re-fits when the window resizes until the reader pans or zooms; after that their position is left alone. Fitting never shrinks below `MIN_FIT_SCALE`: a flow too large for the window starts at its top-left corner and is panned, because text scaled smaller than that cannot be read.\n\nA box with code has two controls: the body focuses the node and the corner button opens its code directly.",
+      "explanation": "`createDiagram` draws nodes as real `button` elements so the diagram works from the keyboard, and edges as SVG paths underneath.\n\nPan and zoom live in `PanZoom`: one CSS transform on the stage. The diagram re-fits when the window resizes until the reader pans or zooms; after that their position is left alone. Fitting never shrinks below `MIN_FIT_SCALE`: a flow too large for the window starts at its top-left corner and is panned, because text scaled smaller than that cannot be read.\n\nA box with code has two controls: the body focuses the node and the corner button opens its code directly.",
       "anchors": [
         {
           "file": "packages/viewer/src/diagram.ts",
           "symbol": "createDiagram",
-          "startLine": 126,
-          "endLine": 258,
-          "hash": "4ce6fa846e391e6f"
+          "startLine": 130,
+          "endLine": 165,
+          "hash": "19f207fa578dfe8c"
+        },
+        {
+          "file": "packages/viewer/src/panZoom.ts",
+          "symbol": "PanZoom",
+          "startLine": 36,
+          "endLine": 158,
+          "hash": "ec2bfab243e7f0d9"
         }
       ]
     },
@@ -320,8 +341,8 @@
         {
           "file": "packages/viewer/src/markdown.ts",
           "symbol": "renderMarkdown",
-          "startLine": 148,
-          "endLine": 174,
+          "startLine": 150,
+          "endLine": 176,
           "hash": "ba67c37c9a2ff247"
         }
       ]
@@ -332,15 +353,202 @@
       "kind": "external",
       "title": "Editor",
       "summary": "VS Code or a fork, opened at the anchored line.",
-      "explanation": "The editor is where every code link lands. The standalone page reaches it through the URL scheme the editor registers with the operating system, so no extension is needed for links from a diagram to code.\n\nGoing the other way, from a line of code to its visual, needs the CodeAtlas extension."
+      "explanation": "The editor is where every code link lands. The standalone page reaches it through the URL scheme the editor registers with the operating system, so no extension is needed for links from a diagram to code.\n\nGoing the other way, from a line of code to its visual, is what the CodeAtlas extension adds."
     },
     {
       "id": "extension",
       "parent": null,
       "kind": "service",
       "title": "VS Code extension",
-      "summary": "Shows a node's visual from a line of code, inside the editor.",
-      "planned": true
+      "summary": "Connects the map to the editor: from a line to its visual, and from a box to its lines.",
+      "explanation": "The extension only reads the map; Claude and the map tools write it.\n\n`activate` creates one `MapStore` per workspace folder and registers everything else against it: the code lens and hover providers, the gutter marks, the three commands in `registerCommands`, the cursor follower and the status bar entry. It activates in any folder that contains `.codeatlas/map.json`.\n\nIt returns a small API (`foldersWithMaps`, `focusedNode`) that the integration tests use to observe the panel without reaching into the webview.",
+      "anchors": [
+        {
+          "file": "extension/src/extension.ts",
+          "symbol": "activate",
+          "startLine": 29,
+          "endLine": 74,
+          "hash": "ec749a2b71f81182"
+        },
+        {
+          "file": "extension/src/commands.ts",
+          "symbol": "registerCommands",
+          "startLine": 26,
+          "endLine": 68,
+          "hash": "860b2c240cb52e0d"
+        }
+      ]
+    },
+    {
+      "id": "extension.store",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Map store",
+      "summary": "Loads one folder's map and reloads it when the file changes.",
+      "explanation": "`MapStore` watches `.codeatlas/map.json` and reloads on create, change and delete. Every load bumps `generation`, which is how the rest of the extension knows to discard what it derived from the old contents.\n\nCreate and change events can arrive together, so each `load` takes a number and only the one started last may publish. Without that, an older read of a half-written file could finish second and replace the good map.\n\nA missing file is the normal state and is not an error. A file that exists but cannot be used sets `error`, which the status bar shows.\n\n`uriFor` turns an anchor's path into a file URI and returns nothing for a path that would leave the folder.",
+      "anchors": [
+        {
+          "file": "extension/src/mapStore.ts",
+          "symbol": "MapStore",
+          "startLine": 18,
+          "endLine": 116,
+          "hash": "820020a89256aba8"
+        }
+      ]
+    },
+    {
+      "id": "extension.parse",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Read defensively",
+      "summary": "Parses the map, dropping malformed entries and paths that leave the workspace.",
+      "explanation": "`parseMap` keeps a damaged or hand-edited file from breaking the editor. The skill's validator stays the authority on what a good map is.\n\nA file that is not a map at all is rejected with a message. Individual bad nodes, anchors and edges are dropped and counted, so the rest still works.\n\nAnchor paths are later joined to the folder and opened, so `isSafeRelativePath` always drops absolute paths and any that climb out with `..`.",
+      "anchors": [
+        {
+          "file": "extension/src/core/parseMap.ts",
+          "symbol": "parseMap",
+          "startLine": 66,
+          "endLine": 114,
+          "hash": "02573738538f3868"
+        }
+      ]
+    },
+    {
+      "id": "extension.resolve",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Resolve anchor",
+      "summary": "Finds where an anchor's code is in the text as it stands now, including unsaved edits.",
+      "explanation": "The editor's text can be newer than the map. `resolveAnchor` checks the recorded range against its hash and, on a mismatch, searches the file for a block with that hash.\n\n- `ok`: the code is where the map says.\n- `moved`: found elsewhere, so lenses and jumps use the new lines.\n- `changed`: not found, so the old position is kept and the node is shown as out of date.\n\n`hashLines` must produce exactly what `hash_lines` produces in the Python tools, down to which trailing characters are stripped. A unit test pins both to the same expected values.\n\nThe search runs on the extension host as the reader types, so it is skipped above `MAX_SEARCH_WORK`, the same limit the Python tools use.",
+      "anchors": [
+        {
+          "file": "extension/src/core/resolve.ts",
+          "symbol": "resolveAnchor",
+          "startLine": 56,
+          "endLine": 76,
+          "hash": "dde054f46e70cd8b"
+        },
+        {
+          "file": "extension/src/core/resolve.ts",
+          "symbol": "hashLines",
+          "startLine": 38,
+          "endLine": 41,
+          "hash": "f908e39ab9c2c472"
+        }
+      ]
+    },
+    {
+      "id": "extension.locator",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Locate nodes",
+      "summary": "Lists the nodes covering a document, cached per document version.",
+      "explanation": "Resolving anchors hashes the document, so `Locator` does it once for each pair of document version and map generation. The lenses, hovers, gutter marks and cursor following all read the same result.\n\n`narrowestAt` then answers \"which node is this line?\" by picking the smallest range that contains it, so a line inside a step resolves to the step and not to its function or module.",
+      "anchors": [
+        {
+          "file": "extension/src/locator.ts",
+          "symbol": "Locator",
+          "startLine": 31,
+          "endLine": 62,
+          "hash": "49084f9594e972b5"
+        },
+        {
+          "file": "extension/src/core/locate.ts",
+          "symbol": "narrowestAt",
+          "startLine": 28,
+          "endLine": 36,
+          "hash": "6f7f22c9405af984"
+        }
+      ]
+    },
+    {
+      "id": "extension.marks",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Editor marks",
+      "summary": "Code lenses, hovers and gutter icons on explained code.",
+      "explanation": "`AtlasLensProvider` puts a link above the first line of every anchored range; clicking it runs `codeatlas.showNode`.\n\n`AtlasHoverProvider` answers only on that first line, so hovering inside a long function stays quiet. Titles and summaries come from the map, so they are added with `appendText`, which escapes them, and the hover may run one command only.\n\n`GutterMarks` waits for a pause in typing before re-applying, because each pass re-hashes the document.",
+      "anchors": [
+        {
+          "file": "extension/src/editorMarks.ts",
+          "symbol": "AtlasLensProvider",
+          "startLine": 33,
+          "endLine": 62,
+          "hash": "926c5a81d3635885"
+        },
+        {
+          "file": "extension/src/editorMarks.ts",
+          "symbol": "AtlasHoverProvider",
+          "startLine": 64,
+          "endLine": 92,
+          "hash": "3d9e82c25cb02380"
+        }
+      ]
+    },
+    {
+      "id": "extension.panel",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Diagram panel",
+      "summary": "Hosts the shared viewer in a webview beside the code.",
+      "explanation": "`AtlasPanel` keeps one webview per workspace folder and loads the same viewer bundle as the standalone page.\n\nThe webview never reads files. The extension posts it the map when it reports `ready` and again whenever the store reloads; the viewer keeps the reader's place across a reload and always reports back where it ended up, since the node it was asked for may no longer exist.\n\nA focus request that arrives before there is a map to show is held in `pendingFocus` and sent with the next map.\n\nMessages coming back are not trusted: an `open` request goes through `parseAnchor` before any file is touched.",
+      "anchors": [
+        {
+          "file": "extension/src/atlasPanel.ts",
+          "symbol": "AtlasPanel",
+          "startLine": 24,
+          "endLine": 156,
+          "hash": "2f455c2d1c30a930"
+        },
+        {
+          "file": "packages/viewer/src/webview.ts",
+          "symbol": "receive",
+          "startLine": 34,
+          "endLine": 54,
+          "hash": "ab0e241ce521bdd6"
+        }
+      ]
+    },
+    {
+      "id": "extension.reveal",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Reveal code",
+      "summary": "Opens an anchor in an editor and briefly highlights its range.",
+      "explanation": "`revealAnchor` opens the file in a column that is not the diagram's, re-resolves the anchor against the live text, moves the cursor to its first line and flashes the whole range.\n\nMoving the cursor would normally make the map follow it, which could jump the diagram from the box just clicked to one of its children. `wasJustRevealed` lets the follow logic ignore selection changes for a moment after a reveal.",
+      "anchors": [
+        {
+          "file": "extension/src/reveal.ts",
+          "symbol": "revealAnchor",
+          "startLine": 52,
+          "endLine": 91,
+          "hash": "c9d1367f31cf9696"
+        }
+      ]
+    },
+    {
+      "id": "extension.follow",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Follow cursor",
+      "summary": "While the map is open, focuses the node for the code under the cursor.",
+      "explanation": "On each selection change, after a short delay, `followNow` finds the narrowest node at the cursor and asks the panel to focus it.\n\nIt does nothing when the panel is hidden, when the change came from a reveal, or when the reader is already on that node or inside its flow. The last rule stops the map from backing out of a sub-flow the reader opened on purpose.",
+      "anchors": [
+        {
+          "file": "extension/src/followCursor.ts",
+          "symbol": "followNow",
+          "startLine": 21,
+          "endLine": 34,
+          "hash": "cb1d5877e75a8f51"
+        },
+        {
+          "file": "extension/src/followCursor.ts",
+          "symbol": "followCursor",
+          "startLine": 36,
+          "endLine": 51,
+          "hash": "1ecb0574bf6017ab"
+        }
+      ]
     }
   ],
   "edges": [
@@ -446,13 +654,63 @@
     },
     {
       "from": "map",
-      "to": "extension",
+      "to": "extension.store",
       "label": "watched file"
     },
     {
-      "from": "extension",
+      "from": "extension.store",
+      "to": "extension.parse",
+      "label": "file text"
+    },
+    {
+      "from": "extension.store",
+      "to": "extension.locator",
+      "label": "map"
+    },
+    {
+      "from": "extension.locator",
+      "to": "extension.resolve",
+      "label": "document lines"
+    },
+    {
+      "from": "extension.locator",
+      "to": "extension.marks",
+      "label": "located nodes"
+    },
+    {
+      "from": "extension.locator",
+      "to": "extension.follow",
+      "label": "located nodes"
+    },
+    {
+      "from": "extension.marks",
+      "to": "extension.panel",
+      "label": "node to show"
+    },
+    {
+      "from": "extension.follow",
+      "to": "extension.panel",
+      "label": "node to focus"
+    },
+    {
+      "from": "extension.store",
+      "to": "extension.panel",
+      "label": "map"
+    },
+    {
+      "from": "extension.panel",
+      "to": "viewer",
+      "label": "map by message"
+    },
+    {
+      "from": "extension.panel",
+      "to": "extension.reveal",
+      "label": "anchor"
+    },
+    {
+      "from": "extension.reveal",
       "to": "editor",
-      "label": "reveal range"
+      "label": "range"
     }
   ]
 }

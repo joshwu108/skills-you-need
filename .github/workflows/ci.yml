@@ -12,8 +12,11 @@ jobs:
   map-tools:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python: ['3.9', '3.13']
+        # 3.9 is the oldest supported version but is no longer installable on
+        # the hosted runner; it is checked locally against macOS's system Python.
+        python: ['3.11', '3.13']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -25,7 +28,7 @@ jobs:
       - name: The repository's own map still matches its code
         run: python plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py refresh
 
-  viewer:
+  viewer-and-extension:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,5 +40,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: Committed bundles match the sources
-        run: git diff --exit-code -- plugins/codeatlas/skills/codeatlas/assets extension/media
+      - name: Committed viewer bundles match the sources
+        run: git diff --exit-code -- plugins/codeatlas/skills/codeatlas/assets
+      - name: Extension tests inside VS Code
+        run: xvfb-run -a npx vscode-test
+        working-directory: extension
+      - name: The extension packages
+        run: npx vsce package --no-dependencies
+        working-directory: extension

@@ -51,7 +51,22 @@ The plugin's hook runs this check on each file Claude edits. Run `refresh` after
 
 ### VS Code extension
 
-The extension adds the other direction, from a line of code to its visual, and shows the same diagram inside the editor. See [`extension/`](extension/).
+The extension adds the other direction, from a line of code to its visual, and shows the same diagram inside the editor:
+
+- A link above each explained piece of code, a hover on its first line, and a gutter mark.
+- The flow diagram in a panel beside the code. Clicking a box jumps to its lines.
+- While the panel is open, moving the cursor shows the explanation for the code you are in.
+- Anchors follow unsaved edits, and code that changed is flagged as out of date.
+
+Until it is on the Marketplace, build and install it locally:
+
+```bash
+npm install
+npm run package -w codeatlas
+code --install-extension extension/codeatlas-0.1.0.vsix
+```
+
+See [`extension/README.md`](extension/README.md) for commands and settings, and [`PUBLISHING.md`](PUBLISHING.md) for releasing it.
 
 ## Repository layout
 
@@ -75,13 +90,17 @@ extension/                          the VS Code extension
 python3 -m venv .venv && .venv/bin/pip install pytest pytest-cov
 cd plugins/codeatlas && ../../.venv/bin/python -m pytest --cov=skills/codeatlas/scripts
 
-# Viewer
+# Viewer and extension
 npm install
-npm test
-npm run build        # rewrites the committed bundles; commit the result
+npm test                               # unit tests for both
+npm run build                          # rewrites the committed viewer bundles; commit the result
+npm run test:integration -w codeatlas  # extension tests inside a downloaded VS Code
 
 # See the result on this repository's own map
 python3 plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py build --open
+
+# Screenshot a built page at four widths and both themes (uses local Chrome)
+node packages/viewer/scripts/screenshots.mjs .codeatlas/atlas.html /tmp/atlas-shots
 ```
 
 The viewer bundles under `assets/` are committed so that a plugin install needs no build step. CI rebuilds them and fails if they differ from the sources.

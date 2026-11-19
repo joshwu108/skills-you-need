@@ -4,7 +4,7 @@ A Claude Code plugin marketplace. The first plugin is **CodeAtlas**.
 
 ## CodeAtlas
 
-CodeAtlas gives a codebase a visual walkthrough that stays attached to the code.
+CodeAtlas gives a codebase a visual walkthrough that stays attached to the code and allows you to take your own notes in the codebase.
 
 - **A flow diagram you can drill into.** The top level shows the system's main parts. Click a part to open the flow inside it.
 - **Every box is explained.** What it does, how, what goes in and out, and what the code does not make obvious.

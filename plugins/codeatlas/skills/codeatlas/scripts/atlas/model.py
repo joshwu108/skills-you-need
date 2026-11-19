@@ -18,7 +18,10 @@ MAP_DIR = ".codeatlas"
 MAP_FILE = "map.json"
 VIEWER_FILE = "atlas.html"
 
-NODE_KINDS = ("service", "module", "function", "step", "data", "external")
+NODE_KINDS = ("service", "module", "function", "step", "data", "external", "note")
+# A box the user added from the diagram. It is theirs: held to none of the
+# writing rules, and never counted against the size of a view.
+USER_KIND = "note"
 EDGE_KINDS = ("call", "data", "event")
 
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")

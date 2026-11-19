@@ -26,7 +26,10 @@
           "description": "The containing node, or null at the top level.",
           "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
         },
-        "kind": { "enum": ["service", "module", "function", "step", "data", "external"] },
+        "kind": {
+          "enum": ["service", "module", "function", "step", "data", "external", "note"],
+          "description": "note is a box the user added from the diagram."
+        },
         "title": { "type": "string", "minLength": 1 },
         "summary": { "type": "string", "maxLength": 160 },
         "explanation": { "type": "string", "description": "Markdown." },
@@ -58,7 +61,8 @@
         "from": { "$ref": "#/$defs/id" },
         "to": { "$ref": "#/$defs/id" },
         "label": { "type": "string" },
-        "kind": { "enum": ["call", "data", "event"] }
+        "kind": { "enum": ["call", "data", "event"] },
+        "user": { "type": "boolean", "description": "Drawn by the user from the diagram." }
       }
     }
   }

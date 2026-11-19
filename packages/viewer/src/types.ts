@@ -1,6 +1,9 @@
 /** The map file as written by the CodeAtlas skill (`.codeatlas/map.json`). */
 
-export type NodeKind = 'service' | 'module' | 'function' | 'step' | 'data' | 'external';
+/** `note` is a box the reader added themselves; the others are written by Claude. */
+export type NodeKind = 'service' | 'module' | 'function' | 'step' | 'data' | 'external' | 'note';
+
+export const NODE_KINDS: readonly NodeKind[] = ['service', 'module', 'function', 'step', 'data', 'external', 'note'];
 
 export interface Anchor {
   /** Repository-relative path with forward slashes. */
@@ -32,6 +35,8 @@ export interface AtlasEdge {
   to: string;
   label?: string;
   kind?: 'call' | 'data' | 'event';
+  /** Drawn by the reader, not by Claude. */
+  user?: boolean;
 }
 
 export interface AtlasMap {
@@ -42,8 +47,35 @@ export interface AtlasMap {
   edges?: AtlasEdge[];
 }
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/** Hand-placed boxes in one view: node id to the top-left corner of its box. */
+export type ViewPositions = Record<string, Point>;
+
+/**
+ * Where the reader dragged boxes to (`.codeatlas/layout.json`). Kept apart
+ * from the map so rearranging a diagram never touches what Claude wrote.
+ * Views are keyed by the id of the node whose flow they show.
+ */
+export interface AtlasLayout {
+  version: number;
+  views: Record<string, ViewPositions>;
+}
+
+/** The text of a node a reader may change from the diagram. */
+export interface NodeChanges {
+  title?: string;
+  kind?: NodeKind;
+  summary?: string;
+  explanation?: string;
+}
+
 export interface AtlasData {
   map: AtlasMap;
+  layout?: AtlasLayout;
   /** Absolute path of the repository, used to build editor links. */
   root?: string;
 }

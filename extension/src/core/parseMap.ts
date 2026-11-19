@@ -11,12 +11,13 @@
  */
 
 import { isSafeRelativePath } from '../../../packages/viewer/src/links';
+import { NODE_KINDS } from '../../../packages/viewer/src/types';
 import type { Anchor, AtlasEdge, AtlasMap, AtlasNode, NodeKind } from '../../../packages/viewer/src/types';
 
 export { isSafeRelativePath };
 
 const SUPPORTED_VERSION = 1;
-const KINDS: readonly string[] = ['service', 'module', 'function', 'step', 'data', 'external'];
+const KINDS: readonly string[] = NODE_KINDS;
 
 export type ParseResult = { ok: true; map: AtlasMap; dropped: number } | { ok: false; error: string };
 

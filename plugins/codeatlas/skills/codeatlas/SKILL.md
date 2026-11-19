@@ -104,7 +104,7 @@ The full schema is `${CLAUDE_SKILL_DIR}/schema/map.schema.json`.
 The reader clicks a box because they do not understand that code yet. Write for them.
 
 - `title`: one to four words, the name a teammate would use.
-- `summary`: one sentence under 160 characters saying what it does. It appears on hover and in lists.
+- `summary`: one sentence under 160 characters saying what it does. It is printed on the box itself, so it is the first thing a reader sees.
 - `explanation`: roughly 60 to 200 words of Markdown (a guide; nothing enforces it), in this order:
   1. What it does and why it exists.
   2. How it works: the main moves in order, naming real identifiers in backticks.
@@ -113,6 +113,19 @@ The reader clicks a box because they do not understand that code yet. Write for 
 - Explain; do not paraphrase the code line by line. If a sentence would still be true of any codebase, delete it.
 - Say only what you read in the code. If you did not open the file, do not describe it.
 - Supported Markdown: paragraphs, `#` headings, `-` and `1.` lists, fenced code, `inline code`, `**bold**`, `*italic*`, and `[links](https://...)`. Tables, images and HTML are not rendered.
+
+## The user's own notes and links
+
+The user can add to the map from the diagram: note boxes (`"kind": "note"`, ids starting `note.`), sometimes anchored to lines they selected, and arrows they drew (`"user": true` on the edge). These are the user's writing, not yours.
+
+- Never create a `note` node or a `user` edge yourself, and never delete, rewrite, re-parent or re-anchor one. Carry every one of them over unchanged when you rewrite the map.
+- If you remove or rename a node that a note or a user edge points at, tell the user which note is affected and re-point it at the closest surviving node; do not drop it silently.
+- A stale note is the user's to review. Report it; do not rewrite or re-stamp it.
+- Notes are worth reading: they often say what the user found confusing or what the code does not make obvious. Use that when you write explanations nearby.
+
+## Order and the walkthrough
+
+The viewer has a "Walk through" mode that reads the map to the user one box at a time. In each flow it starts at the first node you list and follows the arrows out of it; when a trail ends it continues with the next listed node it has not read. So list the nodes of a flow in the order you would explain them aloud, starting where the work starts (the entry point, the caller, the first step), and leave tests, tooling and other side branches until last.
 
 ## Commands
 
@@ -131,3 +144,5 @@ Exit code 1 means the map needs attention and the output says what; fix it and r
 
 - `.codeatlas/map.json` uses relative paths and is meant to be committed with the code. Commit it only when the user asks.
 - `.codeatlas/atlas.html` embeds absolute paths for editor links, so `build` adds it to `.codeatlas/.gitignore`. Regenerate it; never commit it.
+- `.codeatlas/layout.json` records where the user dragged boxes to, keyed by node id. The viewer writes it; never write or edit it yourself. It is meant to be committed alongside the map. If you rename a node id, its box goes back to the automatic position, so keep ids stable when rewriting an existing map.
+- The user can edit a node's title, kind, summary and explanation from the diagram in VS Code, which rewrites `map.json`. Read the map again before changing it; do not overwrite it from memory.

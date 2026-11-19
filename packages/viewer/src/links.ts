@@ -15,6 +15,15 @@ export function isEditorScheme(value: unknown): value is (typeof EDITORS)[number
   return EDITORS.some((editor) => editor.scheme === value);
 }
 
+/**
+ * True inside an editor's built-in browser (VS Code and its forks are
+ * Electron applications). A page there cannot hand an editor link to the
+ * operating system; the link is loaded as a web address and fails.
+ */
+export function isEmbeddedBrowser(userAgent: string): boolean {
+  return /\bElectron\//.test(userAgent);
+}
+
 /** True for a path that stays inside the repository: relative, forward slashes, no `..`. */
 export function isSafeRelativePath(file: unknown): file is string {
   if (typeof file !== 'string' || file === '' || file.includes('\\') || file.startsWith('/')) return false;

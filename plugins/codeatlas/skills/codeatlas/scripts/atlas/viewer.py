@@ -13,6 +13,7 @@ import hashlib
 import html
 import json
 from pathlib import Path
+from typing import Optional
 
 from .model import MapError
 
@@ -36,21 +37,28 @@ _TEMPLATE = """<!doctype html>
 """
 
 
-def build_html(atlas: dict, root: Path, assets_dir: Path = DEFAULT_ASSETS) -> str:
+def build_html(
+    atlas: dict, root: Path, assets_dir: Path = DEFAULT_ASSETS, layout: Optional[dict] = None
+) -> str:
+    """Return the page for `atlas`. `layout` is where a reader dragged boxes to, if anywhere."""
     script = _read_asset(assets_dir / "viewer.js").replace("</script", "<\\/script")
     style = _read_asset(assets_dir / "viewer.css").replace("</style", "<\\/style")
     policy = (
         "default-src 'none'; "
         f"script-src '{_source_hash(script)}'; "
         f"style-src '{_source_hash(style)}'; "
-        "img-src data:"
+        "img-src data:; "
+        "form-action 'none'; "
+        "base-uri 'none'"
     )
     return _TEMPLATE.format(
         policy=policy,
         # Collapsed to one line: the title is the only map text outside the JSON block.
         title=html.escape(" ".join(str(atlas.get("title", "Code map")).split())),
         style=style,
-        data=_inert_json({"map": atlas, "root": str(root.resolve())}),
+        data=_inert_json(
+            {"map": atlas, "root": str(root.resolve()), **({"layout": layout} if layout else {})}
+        ),
         script=script,
     )
 

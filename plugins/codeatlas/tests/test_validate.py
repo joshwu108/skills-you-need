@@ -143,3 +143,33 @@ def test_issue_path_points_at_the_offending_node(atlas):
     atlas["nodes"][1]["kind"] = "widget"
     issue = next(i for i in validate_map(atlas) if i.level == "error")
     assert issue.path == "nodes[1].kind"
+
+
+def _with_notes(atlas: dict, count: int) -> dict:
+    notes = [{"id": f"note.{i}", "parent": None, "kind": "note", "title": f"Note {i}"} for i in range(count)]
+    return {**atlas, "nodes": [*atlas["nodes"], *notes]}
+
+
+def test_a_users_note_needs_no_explanation_or_anchor(atlas):
+    before = [str(issue) for issue in validate_map(atlas, strict=True)]
+
+    after = [str(issue) for issue in validate_map(_with_notes(atlas, 1), strict=True)]
+
+    assert after == before
+
+
+def test_users_notes_do_not_count_against_the_size_of_a_view(atlas):
+    before = [issue.message for issue in validate_map(atlas)]
+
+    after = [issue.message for issue in validate_map(_with_notes(atlas, 40))]
+
+    assert [message for message in after if "children" in message] == [m for m in before if "children" in m]
+
+
+def test_a_user_edge_is_accepted_and_its_flag_must_be_a_boolean(atlas):
+    first, second = atlas["nodes"][0]["id"], atlas["nodes"][1]["id"]
+    good = {**atlas, "edges": [*atlas.get("edges", []), {"from": first, "to": second, "user": True}]}
+    bad = {**atlas, "edges": [*atlas.get("edges", []), {"from": first, "to": second, "user": "yes"}]}
+
+    assert [issue for issue in validate_map(good) if ".user" in issue.path] == []
+    assert any(issue.path.endswith(".user") and issue.level == "error" for issue in validate_map(bad))

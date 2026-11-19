@@ -9,6 +9,7 @@
 import { mount } from './app';
 import type { Controller } from './app';
 import { h } from './dom';
+import type { Host } from './host';
 import type { FromWebview, ToWebview } from './protocol';
 
 declare function acquireVsCodeApi(): { postMessage(message: FromWebview): void };
@@ -38,19 +39,36 @@ function receive(message: ToWebview): void {
   } else if (message.type === 'focus') {
     controller?.focus(message.nodeId);
   } else if (message.type === 'map') {
-    // Keep the reader's place across a reload unless the extension asks for a node.
-    const focus = message.focus !== undefined ? message.focus : (controller?.focused() ?? null);
-    controller?.destroy();
-    // Cleared first: if mounting throws, no destroyed controller is left behind.
-    controller = undefined;
-    controller = mount(container, message.data, {
-      openAnchor: (anchor) => vscode.postMessage({ type: 'open', anchor }),
-      onNavigate: (nodeId) => vscode.postMessage({ type: 'navigate', nodeId }),
-    });
-    controller.focus(focus);
-    // Always report where the reader ended up: the requested node may be gone.
-    vscode.postMessage({ type: 'navigate', nodeId: controller.focused() });
+    showMap(container, message);
   }
+}
+
+function host(): Host {
+  return {
+    openAnchor: (anchor) => vscode.postMessage({ type: 'open', anchor }),
+    revealAnchor: (anchor) => vscode.postMessage({ type: 'reveal', anchor }),
+    onNavigate: (nodeId) => vscode.postMessage({ type: 'navigate', nodeId }),
+    savePositions: (view, positions) => vscode.postMessage({ type: 'positions', view, positions }),
+    saveNode: (nodeId, changes) => vscode.postMessage({ type: 'edit', nodeId, changes }),
+    addNote: (parent) => vscode.postMessage({ type: 'addNote', parent }),
+    removeNote: (nodeId) => vscode.postMessage({ type: 'removeNote', nodeId }),
+    addLink: (from, to, label) => vscode.postMessage({ type: 'addLink', from, to, label }),
+    removeLink: (from, to) => vscode.postMessage({ type: 'removeLink', from, to }),
+  };
+}
+
+/**
+ * A changed map is shown in the running viewer, so a reload (the reader's
+ * own save, or Claude rewriting the map) does not cost them their place,
+ * their walkthrough or a half-written edit.
+ */
+function showMap(target: HTMLElement, message: Extract<ToWebview, { type: 'map' }>): void {
+  if (controller) controller.update(message.data);
+  else controller = mount(target, message.data, host());
+  if (message.focus !== undefined) controller.focus(message.focus);
+  if (message.edit) controller.edit();
+  // Always report where the reader ended up: the requested node may be gone.
+  vscode.postMessage({ type: 'navigate', nodeId: controller.focused() });
 }
 
 applyTheme();

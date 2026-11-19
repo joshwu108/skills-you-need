@@ -34,14 +34,14 @@
       "kind": "data",
       "title": "Map file",
       "summary": "`.codeatlas/map.json`: nodes, their parents, edges, and anchors to code.",
-      "explanation": "The map is the contract between the author and both readers.\n\n- A node's `parent` gives the hierarchy, and a node's children are its sub-flow.\n- An anchor is a file plus a line range and a hash of those lines.\n- Paths are relative to the repository root, so the file can be committed and shared.\n\nThe constants every tool agrees on (kinds, the id pattern, file names) live in `model.py`, alongside `load_map` and `save_map`.",
+      "explanation": "The map is the contract between the author and both readers.\n\n- A node's `parent` gives the hierarchy, and a node's children are its sub-flow.\n- An anchor is a file plus a line range and a hash of those lines.\n- Paths are relative to the repository root, so the file can be committed and shared.\n- A node of kind `note` and an edge marked `user` were added by the reader from the diagram. They are the reader's writing and Claude carries them over untouched.\n\nThe constants every tool agrees on (kinds, the id pattern, file names) live in `model.py`, alongside `load_map` and `save_map`.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/model.py",
           "symbol": "NODE_KINDS",
           "startLine": 21,
           "endLine": 21,
-          "hash": "fb927068403dd547"
+          "hash": "36911e865ba1b74d"
         },
         {
           "file": "plugins/codeatlas/skills/codeatlas/schema/map.schema.json",
@@ -62,8 +62,8 @@
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py",
           "symbol": "main",
-          "startLine": 45,
-          "endLine": 51,
+          "startLine": 46,
+          "endLine": 52,
           "hash": "a64e3b584365e675"
         }
       ]
@@ -74,20 +74,20 @@
       "kind": "function",
       "title": "Build",
       "summary": "Checks the map's structure, stamps new anchors, refreshes the rest, then writes the viewer.",
-      "explanation": "`build` is the one command Claude runs after changing the map.\n\n1. `_load_sound` validates the structure first. `stamp` and `refresh` rewrite the file, so they never run on a map whose fields have the wrong types.\n2. `stamp` fills in line ranges and hashes for anchors that have none. An anchor that cannot be resolved stops the build.\n3. `refresh` re-checks every other anchor, so the page shows current line ranges and stale flags.\n4. `validate_map` runs again in strict mode, which also checks anchors against the files.\n\nOnly if all of that is clean does it save the map and write `atlas.html`. A failed build writes nothing, so a broken map never replaces a working viewer. It also adds `atlas.html` to `.codeatlas/.gitignore`, because the page embeds absolute paths.",
+      "explanation": "`build` is the one command Claude runs after changing the map.\n\n1. `_load_sound` validates the structure first. `stamp` and `refresh` rewrite the file, so they never run on a map whose fields have the wrong types.\n2. `stamp` fills in line ranges and hashes for anchors that have none. An anchor that cannot be resolved stops the build.\n3. `refresh` re-checks every other anchor, so the page shows current line ranges and stale flags.\n4. `validate_map` runs again in strict mode, which also checks anchors against the files.\n\nOnly if all of that is clean does it save the map and write `atlas.html`. A failed build writes nothing, so a broken map never replaces a working viewer. It also adds `atlas.html` to `.codeatlas/.gitignore`, because the page embeds absolute paths.\n\nIf the reader has dragged boxes, `load_layout` reads `.codeatlas/layout.json` and the positions are built into the page. That file is cosmetic, so a missing, oversized or malformed one is ignored and never fails the build.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py",
           "symbol": "_build",
-          "startLine": 118,
-          "endLine": 146,
-          "hash": "bd556414f1c4aead"
+          "startLine": 119,
+          "endLine": 148,
+          "hash": "0d4c153e21d67d24"
         },
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/codeatlas.py",
           "symbol": "_load_sound",
-          "startLine": 102,
-          "endLine": 115,
+          "startLine": 103,
+          "endLine": 116,
           "hash": "3d6afdad4853fd36"
         }
       ]
@@ -98,13 +98,13 @@
       "kind": "function",
       "title": "Validate",
       "summary": "Finds structural errors and readability warnings in a map.",
-      "explanation": "`validate_map` returns a list of `Issue` values, errors first, each with a path such as `nodes[3].kind` so the author can find it.\n\n**Errors** stop the viewer from working: duplicate ids, a parent cycle, an edge to a missing node, an anchor that escapes the repository. **Warnings** are maps that load but read badly: more than 12 boxes in one view, a leaf with no code, an unknown key (usually a typo such as `start_line`).\n\nStrict mode adds `_check_against_files`: every anchor must have a hash and point inside a file that exists.",
+      "explanation": "`validate_map` returns a list of `Issue` values, errors first, each with a path such as `nodes[3].kind` so the author can find it.\n\n**Errors** stop the viewer from working: duplicate ids, a parent cycle, an edge to a missing node, an anchor that escapes the repository. **Warnings** are maps that load but read badly: more than 12 boxes in one view, a leaf with no code, an unknown key (usually a typo such as `start_line`).\n\nStrict mode adds `_check_against_files`: every anchor must have a hash and point inside a file that exists.\n\nNodes of kind `note` are boxes the user added from the diagram. They are exempt from the writing rules (no explanation or anchor is required) and are not counted against the size of a view, because the limit is advice to whoever draws the map and the notes are not theirs to regroup.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/validate.py",
           "symbol": "validate_map",
-          "startLine": 41,
-          "endLine": 53,
+          "startLine": 50,
+          "endLine": 62,
           "hash": "3aae28742ec37d47"
         }
       ]
@@ -173,20 +173,20 @@
       "kind": "function",
       "title": "Write viewer page",
       "summary": "Inlines the map, script and stylesheet into one HTML file.",
-      "explanation": "`build_html` produces a page that works from disk with no server.\n\nExplanations are written by a model from repository content, so they are treated as untrusted. `_inert_json` escapes `<`, `>` and `&` so the embedded map cannot close its script element, and the content security policy allows exactly one script and one stylesheet, identified by hash. Nothing is fetched.\n\nThe title is the only map text placed outside that JSON block, so it is escaped and collapsed to a single line.\n\nThe page is written with `write_text` in `model.py`, which refuses to write through a symbolic link: a repository could otherwise commit `atlas.html` as a link to a file in the user's home directory.",
+      "explanation": "`build_html` produces a page that works from disk with no server.\n\nExplanations are written by a model from repository content, so they are treated as untrusted. `_inert_json` escapes `<`, `>` and `&` so the embedded map cannot close its script element, and the content security policy allows exactly one script and one stylesheet, identified by hash, and forbids form submission. Nothing is fetched.\n\nThe title is the only map text placed outside that JSON block, so it is escaped and collapsed to a single line. The reader's box positions, when there are any, travel in the same JSON block beside the map.\n\nThe page is written with `write_text` in `model.py`, which refuses to write through a symbolic link: a repository could otherwise commit `atlas.html` as a link to a file in the user's home directory.",
       "anchors": [
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/viewer.py",
           "symbol": "build_html",
-          "startLine": 39,
-          "endLine": 55,
-          "hash": "304e90ab0a780e65"
+          "startLine": 40,
+          "endLine": 63,
+          "hash": "8c686b68dc09ed16"
         },
         {
           "file": "plugins/codeatlas/skills/codeatlas/scripts/atlas/model.py",
           "symbol": "write_text",
-          "startLine": 72,
-          "endLine": 93,
+          "startLine": 75,
+          "endLine": 96,
           "hash": "8b7240cc5cb36027"
         }
       ]
@@ -220,14 +220,14 @@
       "kind": "service",
       "title": "Viewer",
       "summary": "The diagram and reading panel, shared by the page and the extension.",
-      "explanation": "The viewer is written once in TypeScript and bundled by `build.mjs` into the skill's assets, so a plugin install needs no build step.\n\n`AtlasApp` holds two pieces of state: which level is on screen and which node in it is selected. Everything else is derived. `focus` is the single way to change it: a node with children becomes the view, and a leaf is selected inside its parent's flow.\n\nIts surroundings are abstracted as a `Host` (`host.ts`), which is the only difference between the standalone page (editor URL links) and a VS Code webview (messages to the extension).",
+      "explanation": "The viewer is written once in TypeScript and bundled by `build.mjs` into the skill's assets, so a plugin install needs no build step.\n\n`AtlasApp` holds the reader's state: which level is on screen, which node in it is selected, where they dragged boxes to, and the walkthrough if one is running. `focus` is how a click changes it: a node with children becomes the view, and a leaf is selected inside its parent's flow.\n\n`update` shows a changed map in the running viewer. The reader keeps their level, selection, pan and zoom, walkthrough and any unsaved edit, as far as the new map still has the nodes involved; rebuilding from scratch would throw all of that away every time the file is saved. The host's box positions are adopted only when they differ from what it last sent, so a map that was already on its way when a box was dropped does not put the box back.\n\nIts surroundings are abstracted as a `Host` (`host.ts`). Optional members are capabilities: the standalone page cannot write files, so it offers no editing, and the matching controls are simply not drawn.",
       "anchors": [
         {
           "file": "packages/viewer/src/app.ts",
           "symbol": "AtlasApp",
-          "startLine": 32,
-          "endLine": 133,
-          "hash": "6a9bc0b9688d9be2"
+          "startLine": 68,
+          "endLine": 320,
+          "hash": "0a7038293956de12"
         }
       ]
     },
@@ -237,14 +237,14 @@
       "kind": "function",
       "title": "Page entry",
       "summary": "Reads the embedded map and connects the viewer to the browser.",
-      "explanation": "`start` parses the inert JSON block, builds the editor picker, and mounts the viewer.\n\nThe focused node is mirrored in the URL fragment (`#/engine.step`), so a view can be bookmarked and the back button walks up the levels. A fragment with a broken escape names no node and is ignored.\n\nCode links are `vscode://file/<path>:<line>` URLs, with the scheme taken from the picker so Cursor and other forks work. `editorUrl` returns nothing for a path that would leave the repository, so a crafted map cannot make a link open some other file.",
+      "explanation": "`start` parses the inert JSON block, builds the editor picker, and mounts the viewer.\n\nThe focused node is mirrored in the URL fragment (`#/engine.step`), so a view can be bookmarked and the back button walks up the levels. A fragment with a broken escape names no node and is ignored.\n\nCode links are `vscode://file/<path>:<line>` URLs, with the scheme taken from the picker so Cursor and other forks work. `editorUrl` returns nothing for a path that would leave the repository. `openInEditor` covers the two ways a link fails silently: inside an editor's built-in browser (recognised by its Electron user agent) the link cannot work at all, so the page says so instead of following it; elsewhere, if the window never loses focus after the click, a message suggests choosing a different editor.\n\nThe page cannot write files, so `arrangement` keeps dragged boxes in the browser's storage. It is discarded when the layout built into the page changes, because that means the boxes were since moved somewhere that can write the file.",
       "anchors": [
         {
           "file": "packages/viewer/src/standalone.ts",
           "symbol": "start",
-          "startLine": 64,
-          "endLine": 85,
-          "hash": "34fde6d47677138e"
+          "startLine": 119,
+          "endLine": 150,
+          "hash": "c464a213f55a4ca8"
         }
       ]
     },
@@ -277,15 +277,22 @@
       "parent": "viewer",
       "kind": "function",
       "title": "Lay out",
-      "summary": "Positions boxes in layers and routes the edges between them.",
-      "explanation": "`layoutView` hands the view to dagre, a layered graph layout, flowing top to bottom.\n\nBoxes have fixed sizes, so nothing needs measuring before layout. Edge labels are given a width estimated from their character count, which lets dagre leave room for them. `smoothPath` then rounds each route into quadratic curves.",
+      "summary": "Positions boxes in layers, routes the edges, and applies any positions the reader chose.",
+      "explanation": "`layoutView` hands the view to dagre, a layered graph layout, flowing top to bottom.\n\nBoxes have fixed sizes, so nothing needs measuring before layout. Edge labels are given a width estimated from their character count, which lets dagre leave room for them. `smoothPath` then rounds each route into quadratic curves.\n\n`applyPositions` lays the reader's hand-placed boxes over that result. An arrow touching a moved box is redrawn as a straight line between the edges of the two boxes, since the automatic route no longer leads anywhere useful. Positions for nodes that are not in the view are ignored, so a layout file outlives renamed or removed nodes.",
       "anchors": [
         {
           "file": "packages/viewer/src/layout.ts",
           "symbol": "layoutView",
-          "startLine": 50,
-          "endLine": 105,
+          "startLine": 49,
+          "endLine": 104,
           "hash": "f29034cb56087973"
+        },
+        {
+          "file": "packages/viewer/src/layout.ts",
+          "symbol": "applyPositions",
+          "startLine": 140,
+          "endLine": 164,
+          "hash": "195821ebb00bd2ce"
         }
       ]
     },
@@ -294,22 +301,22 @@
       "parent": "viewer",
       "kind": "function",
       "title": "Draw diagram",
-      "summary": "Renders boxes as buttons over an SVG edge layer, with pan and zoom.",
-      "explanation": "`createDiagram` draws nodes as real `button` elements so the diagram works from the keyboard, and edges as SVG paths underneath.\n\nPan and zoom live in `PanZoom`: one CSS transform on the stage. The diagram re-fits when the window resizes until the reader pans or zooms; after that their position is left alone. Fitting never shrinks below `MIN_FIT_SCALE`: a flow too large for the window starts at its top-left corner and is panned, because text scaled smaller than that cannot be read.\n\nA box with code has two controls: the body focuses the node and the corner button opens its code directly.",
+      "summary": "Renders boxes as buttons over an SVG edge layer, with pan, zoom and emphasis of one box's arrows.",
+      "explanation": "`createDiagram` draws nodes as real `button` elements so the diagram works from the keyboard, and edges as SVG paths underneath. Each box shows its kind, title and one-line summary.\n\nPan and zoom live in `PanZoom`: one CSS transform on the stage. The diagram re-fits when the window resizes until the reader pans or zooms; after that their position is left alone. Fitting never shrinks below `MIN_FIT_SCALE`, because text scaled smaller than that cannot be read. `reveal` pans a selected box into view when it is off screen, which is what keeps a walkthrough step visible in a wide flow.\n\nHovering, focusing or selecting a box emphasises its arrows and the boxes at their other ends (`markLinked` in `edges.ts`); the rest recede.\n\nA box with code has two controls: the body focuses the node and the corner button opens its code directly.",
       "anchors": [
         {
           "file": "packages/viewer/src/diagram.ts",
           "symbol": "createDiagram",
-          "startLine": 130,
-          "endLine": 165,
-          "hash": "19f207fa578dfe8c"
+          "startLine": 248,
+          "endLine": 250,
+          "hash": "9b28bbbb840a9ec2"
         },
         {
           "file": "packages/viewer/src/panZoom.ts",
           "symbol": "PanZoom",
           "startLine": 36,
-          "endLine": 158,
-          "hash": "ec2bfab243e7f0d9"
+          "endLine": 185,
+          "hash": "dc206465a2719859"
         }
       ]
     },
@@ -318,15 +325,15 @@
       "parent": "viewer",
       "kind": "function",
       "title": "Reading panel",
-      "summary": "Shows the focused node's explanation, its code links and its parts.",
-      "explanation": "`createPanel` renders the text side: kind, title, summary, an out-of-date notice when the node is stale, the explanation, then the code anchors as buttons.\n\nSummaries go through the inline Markdown renderer, so `code` in a one-line summary is formatted here even though the diagram shows it as plain text.\n\nFor a node with children it also lists them, which gives a second, linear way through the same flow for readers who do not use the diagram.",
+      "summary": "Shows the focused node's explanation, code links, connections and parts, and the forms that edit them.",
+      "explanation": "`createPanel` renders the text side: kind, title, summary, an out-of-date notice when the node is stale, the explanation, the code anchors as buttons, then what flows in and out of the node.\n\nFor a node with children it also lists them, which gives a second, linear way through the same flow for readers who do not use the diagram.\n\nWhere the host can write the map, **Edit** swaps the reading view for a form (`editForm.ts`) that reports only the fields that changed, each connection gets a remove button, and a small form (`linkForm.ts`) draws a new arrow. A note the reader added can be deleted.\n\nThe panel remembers whether an open form has been submitted. An unsaved form survives a map reload; a submitted one is replaced by the saved text when the reload arrives. Closing a form returns keyboard focus to the Edit button.",
       "anchors": [
         {
           "file": "packages/viewer/src/panel.ts",
           "symbol": "createPanel",
-          "startLine": 67,
-          "endLine": 118,
-          "hash": "87b5a6dd01530e50"
+          "startLine": 259,
+          "endLine": 261,
+          "hash": "1aca508c3a12d6e1"
         }
       ]
     },
@@ -361,21 +368,21 @@
       "kind": "service",
       "title": "VS Code extension",
       "summary": "Connects the map to the editor: from a line to its visual, and from a box to its lines.",
-      "explanation": "The extension only reads the map; Claude and the map tools write it.\n\n`activate` creates one `MapStore` per workspace folder and registers everything else against it: the code lens and hover providers, the gutter marks, the three commands in `registerCommands`, the cursor follower and the status bar entry. It activates in any folder that contains `.codeatlas/map.json`.\n\nIt returns a small API (`foldersWithMaps`, `focusedNode`) that the integration tests use to observe the panel without reaching into the webview.",
+      "explanation": "Claude and the map tools write the map. The extension reads it, and writes only what the reader asks for from the diagram or the editor: edited text, notes, links and box positions.\n\n`activate` creates one `MapStore` per workspace folder and registers everything else against it: the code lens and hover providers, the gutter marks, the commands in `registerCommands`, the cursor follower and the status bar entry. It activates once the window has started, so a map created later is picked up without a reload.\n\n`addNoteForSelection` is the editor's way into the reader's own notes: it records the selected lines with their hash, places the note beside the most specific box covering those lines with an arrow to it, and opens the note for writing.\n\nIn Restricted Mode the map can be read but nothing is written. The returned API lets the integration tests do what the diagram does without reaching into the webview.",
       "anchors": [
         {
           "file": "extension/src/extension.ts",
           "symbol": "activate",
-          "startLine": 29,
-          "endLine": 74,
-          "hash": "ec749a2b71f81182"
+          "startLine": 43,
+          "endLine": 97,
+          "hash": "9b007fb50fbe4027"
         },
         {
           "file": "extension/src/commands.ts",
           "symbol": "registerCommands",
-          "startLine": 26,
-          "endLine": 68,
-          "hash": "860b2c240cb52e0d"
+          "startLine": 62,
+          "endLine": 107,
+          "hash": "70227f8b1789a38a"
         }
       ]
     },
@@ -384,15 +391,15 @@
       "parent": "extension",
       "kind": "function",
       "title": "Map store",
-      "summary": "Loads one folder's map and reloads it when the file changes.",
-      "explanation": "`MapStore` watches `.codeatlas/map.json` and reloads on create, change and delete. Every load bumps `generation`, which is how the rest of the extension knows to discard what it derived from the old contents.\n\nCreate and change events can arrive together, so each `load` takes a number and only the one started last may publish. Without that, an older read of a half-written file could finish second and replace the good map.\n\nA missing file is the normal state and is not an error. A file that exists but cannot be used sets `error`, which the status bar shows.\n\n`uriFor` turns an anchor's path into a file URI and returns nothing for a path that would leave the folder.",
+      "summary": "Loads one folder's map, reloads it when the file changes, and writes the reader's changes.",
+      "explanation": "`MapStore` watches `.codeatlas/map.json` and reloads on create, change and delete. Every load bumps `generation`, which is how the rest of the extension knows to discard what it derived from the old contents.\n\nCreate and change events can arrive together, so each `load` takes a number and only the one started last may publish. Without that, an older read of a half-written file could finish second and replace the good map.\n\n`rewrite` is the one path that changes the map file. Rewrites run one at a time, each reading what the one before wrote, and the map is reloaded before the caller continues. `savePositions` keeps dragged boxes in `layout.json`; it only accepts ids of nodes in the current map, so what a webview can make it store is bounded by the map.\n\nBoth go through `replaceFile`: refuse if `.codeatlas` or the target is a symbolic link, write a sibling file, then rename it over the target. A cloned repository could otherwise commit one of these paths as a link to any file the user can write.",
       "anchors": [
         {
           "file": "extension/src/mapStore.ts",
           "symbol": "MapStore",
-          "startLine": 18,
-          "endLine": 116,
-          "hash": "820020a89256aba8"
+          "startLine": 54,
+          "endLine": 291,
+          "hash": "a45c28628e5f2c73"
         }
       ]
     },
@@ -407,8 +414,8 @@
         {
           "file": "extension/src/core/parseMap.ts",
           "symbol": "parseMap",
-          "startLine": 66,
-          "endLine": 114,
+          "startLine": 67,
+          "endLine": 115,
           "hash": "02573738538f3868"
         }
       ]
@@ -491,21 +498,21 @@
       "kind": "function",
       "title": "Diagram panel",
       "summary": "Hosts the shared viewer in a webview beside the code.",
-      "explanation": "`AtlasPanel` keeps one webview per workspace folder and loads the same viewer bundle as the standalone page.\n\nThe webview never reads files. The extension posts it the map when it reports `ready` and again whenever the store reloads; the viewer keeps the reader's place across a reload and always reports back where it ended up, since the node it was asked for may no longer exist.\n\nA focus request that arrives before there is a map to show is held in `pendingFocus` and sent with the next map.\n\nMessages coming back are not trusted: an `open` request goes through `parseAnchor` before any file is touched.",
+      "explanation": "`AtlasPanel` keeps one webview per workspace folder and loads the same viewer bundle as the standalone page.\n\nThe webview never reads or writes files. The extension posts it the map and the box positions when it reports `ready` and again whenever the store reloads; the viewer updates in place and reports back where the reader ended up, since the node it was asked for may no longer exist.\n\nA focus request that arrives before the webview or the map is ready is held in `pendingFocus` and sent with the next map. A request for a node the map does not have is dropped, so it cannot move the reader later, unasked. A new note opens for editing because the store reloads the map before reporting the note's id.\n\nMessages coming back are not trusted. An `open` request goes through `parseAnchor` before any file is touched, and the requests that change the map (`author`) are each checked by the function that applies them. Deleting a note asks for confirmation first.",
       "anchors": [
         {
           "file": "extension/src/atlasPanel.ts",
           "symbol": "AtlasPanel",
-          "startLine": 24,
-          "endLine": 156,
-          "hash": "2f455c2d1c30a930"
+          "startLine": 26,
+          "endLine": 215,
+          "hash": "06b11ee592f44c4c"
         },
         {
           "file": "packages/viewer/src/webview.ts",
           "symbol": "receive",
-          "startLine": 34,
-          "endLine": 54,
-          "hash": "ab0e241ce521bdd6"
+          "startLine": 35,
+          "endLine": 44,
+          "hash": "85defab4a37706bb"
         }
       ]
     },
@@ -515,14 +522,14 @@
       "kind": "function",
       "title": "Reveal code",
       "summary": "Opens an anchor in an editor and briefly highlights its range.",
-      "explanation": "`revealAnchor` opens the file in a column that is not the diagram's, re-resolves the anchor against the live text, moves the cursor to its first line and flashes the whole range.\n\nMoving the cursor would normally make the map follow it, which could jump the diagram from the box just clicked to one of its children. `wasJustRevealed` lets the follow logic ignore selection changes for a moment after a reveal.",
+      "explanation": "`revealAnchor` opens the file in a column that is not the diagram's, re-resolves the anchor against the live text, moves the cursor to its first line and flashes the whole range. With `preserveFocus` the keyboard stays where it was, which a walkthrough uses to show each step's code while the arrow keys keep driving the diagram.\n\nMoving the cursor would normally make the map follow it, which could jump the diagram from the box just clicked to one of its children. `wasJustRevealed` lets the follow logic ignore selection changes for a moment after a reveal.",
       "anchors": [
         {
           "file": "extension/src/reveal.ts",
           "symbol": "revealAnchor",
-          "startLine": 52,
-          "endLine": 91,
-          "hash": "c9d1367f31cf9696"
+          "startLine": 53,
+          "endLine": 94,
+          "hash": "81612bb75fbfc466"
         }
       ]
     },
@@ -547,6 +554,78 @@
           "startLine": 36,
           "endLine": 51,
           "hash": "1ecb0574bf6017ab"
+        }
+      ]
+    },
+    {
+      "id": "viewer.arrange",
+      "parent": "viewer",
+      "kind": "function",
+      "title": "Move boxes",
+      "summary": "Lets the reader drag boxes and reads back where they left them.",
+      "explanation": "`enableNodeDrag` turns a press that travels into a move, and leaves a press that does not as a click, so a box still opens when pressed. Alt with an arrow key nudges the focused box one grid step.\n\nA drag reports through two callbacks: `onDrag` while the box is held and `onDrop` when it is released. The diagram moves the existing element on each step instead of rebuilding it, which is what keeps the pointer capture and the keyboard focus. The click the browser sends after a drag is swallowed so the box does not also open.\n\nThree cases are handled on purpose: a button released where the diagram could not see it abandons the drag instead of leaving the box stuck to the pointer, a second finger cannot replace a drag in progress, and a drag is cancelled when the boxes under it are replaced.\n\nPositions snap to an 8 pixel grid. `parseLayout` reads saved positions defensively: the file lives in the repository, so entries of the wrong shape are dropped and lookups never reach inherited object properties.",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/nodeDrag.ts",
+          "symbol": "enableNodeDrag",
+          "startLine": 54,
+          "endLine": 135,
+          "hash": "f46f3c91c141b1d7"
+        },
+        {
+          "file": "packages/viewer/src/positions.ts",
+          "symbol": "parseLayout",
+          "startLine": 58,
+          "endLine": 66,
+          "hash": "0ea22a1d35b8fbe9"
+        }
+      ]
+    },
+    {
+      "id": "viewer.tour",
+      "parent": "viewer",
+      "kind": "function",
+      "title": "Walkthrough",
+      "summary": "Decides the order the map is read in and steps the reader through it.",
+      "explanation": "`tourOrder` lists every node under the flow on screen in reading order: a node, then everything inside it, then the next node of the same flow.\n\nWithin one flow, `flowOrder` starts at the first node the map lists and follows the arrows out of it, as a reader tracing the diagram would. When a trail ends it picks up at the next listed node not yet read, so loops and disconnected parts are still visited once. This is why the skill asks Claude to list nodes in the order it would explain them.\n\nEach step selects its node inside the flow that contains it, so the reader sees a part among its neighbours before going inside. If the reader clicks elsewhere mid-walkthrough, the position follows them. Where the host can show code without taking focus, each step can also open its code beside the diagram.",
+      "anchors": [
+        {
+          "file": "packages/viewer/src/tour.ts",
+          "symbol": "tourOrder",
+          "startLine": 44,
+          "endLine": 62,
+          "hash": "cac67ccc182cdf49"
+        },
+        {
+          "file": "packages/viewer/src/tour.ts",
+          "symbol": "flowOrder",
+          "startLine": 15,
+          "endLine": 38,
+          "hash": "77a416765329a9f1"
+        }
+      ]
+    },
+    {
+      "id": "extension.author",
+      "parent": "extension",
+      "kind": "function",
+      "title": "Write reader changes",
+      "summary": "Applies an edit, note or hand-drawn link to the text of the map file.",
+      "explanation": "These functions take the map file's text and return new text, or a sentence saying why the change was refused. Requests come from the webview, so nothing about their shape is assumed.\n\n`transformMap` parses, applies one change and serialises with the skill's own formatting (two-space indent, trailing newline), so a change shows up as a small diff. Fields the extension does not know are written back untouched.\n\n`applyNodeEdit` can change only a node's title, kind, summary and explanation. `addNote` appends a node of kind `note` with a generated `note.` id, optionally anchored to lines whose hash the extension already computed, and optionally with an arrow to the box it is about. `addLink` appends an edge marked `user`. `removeNote` deletes only notes, and only empty ones. `removeLink` removes only edges marked `user`, and an edit cannot change a box into a note or a note into anything else, so nothing Claude wrote can be deleted from the diagram.\n\nNotes and `user` edges are the reader's writing: the skill tells Claude never to create, rewrite or drop them.",
+      "anchors": [
+        {
+          "file": "extension/src/core/editMap.ts",
+          "symbol": "transformMap",
+          "startLine": 74,
+          "endLine": 87,
+          "hash": "4092e3fd90beb2de"
+        },
+        {
+          "file": "extension/src/core/authorMap.ts",
+          "symbol": "addNote",
+          "startLine": 52,
+          "endLine": 65,
+          "hash": "8aef37f8e845e0f0"
         }
       ]
     }
@@ -711,6 +790,36 @@
       "from": "extension.reveal",
       "to": "editor",
       "label": "range"
+    },
+    {
+      "from": "viewer.diagram",
+      "to": "viewer.arrange",
+      "label": "pointer and key events"
+    },
+    {
+      "from": "viewer.arrange",
+      "to": "viewer.layout",
+      "label": "hand-placed positions"
+    },
+    {
+      "from": "viewer.tour",
+      "to": "viewer.diagram",
+      "label": "the step to show"
+    },
+    {
+      "from": "extension.panel",
+      "to": "extension.store",
+      "label": "edits, notes, links, positions"
+    },
+    {
+      "from": "extension.store",
+      "to": "extension.author",
+      "label": "map text and a change"
+    },
+    {
+      "from": "extension.author",
+      "to": "map",
+      "label": "rewritten map"
     }
   ]
 }

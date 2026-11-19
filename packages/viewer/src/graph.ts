@@ -153,3 +153,59 @@ export function nodeAtLine(index: AtlasIndex, file: string, line: number): Atlas
 export function staleNodes(index: AtlasIndex): AtlasNode[] {
   return index.map.nodes.filter((node) => node.stale === true);
 }
+
+export interface Connection {
+  /** The node at the other end. */
+  node: AtlasNode;
+  /** True when the arrow points at the other node. */
+  outgoing: boolean;
+  labels: string[];
+  /** True when at least one of the arrows was drawn by the reader, so it can be removed. */
+  isUsers: boolean;
+}
+
+/**
+ * The arrows that touch `id` directly, grouped by the node at the other end.
+ * Arrows drawn between parts deeper inside either node are not included.
+ */
+export function connectionsOf(index: AtlasIndex, id: string): Connection[] {
+  const grouped = new Map<string, Connection>();
+  for (const edge of index.map.edges ?? []) {
+    if (edge.from !== id && edge.to !== id) continue;
+    const outgoing = edge.from === id;
+    const other = index.byId.get(outgoing ? edge.to : edge.from);
+    if (!other || other.id === id) continue;
+    const key = `${outgoing ? '>' : '<'}${other.id}`;
+    const seen = grouped.get(key);
+    const labels = seen?.labels ?? [];
+    grouped.set(key, {
+      node: other,
+      outgoing,
+      labels: edge.label && !labels.includes(edge.label) ? [...labels, edge.label] : labels,
+      isUsers: seen?.isUsers === true || edge.user === true,
+    });
+  }
+  return [...grouped.values()].sort((a, b) => Number(a.outgoing) - Number(b.outgoing));
+}
+
+/**
+ * Nodes matching every word of `query`, best first: a title that starts with
+ * the query, then a title containing it, then a match in the id or summary.
+ */
+export function searchNodes(index: AtlasIndex, query: string, limit: number): AtlasNode[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const phrase = words.join(' ');
+  const ranked: { node: AtlasNode; rank: number }[] = [];
+  for (const node of index.map.nodes) {
+    const title = node.title.toLowerCase();
+    const haystack = `${title}\n${node.id.toLowerCase()}\n${(node.summary ?? '').toLowerCase()}`;
+    if (!words.every((word) => haystack.includes(word))) continue;
+    const rank = title.startsWith(phrase) ? 0 : words.every((word) => title.includes(word)) ? 1 : 2;
+    ranked.push({ node, rank });
+  }
+  return ranked
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, limit)
+    .map((entry) => entry.node);
+}

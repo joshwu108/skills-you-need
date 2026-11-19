@@ -1,0 +1,109 @@
+/* --- frame ------------------------------------------------------------- */
+
+.atlas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--panel-width);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.atlas-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: var(--line) solid var(--ink);
+  background: var(--sheet);
+}
+
+.atlas-mark,
+.atlas-node-kind,
+.atlas-tag,
+.atlas-section h3,
+.atlas-stale-count,
+.atlas-editor {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.atlas-mark {
+  font-weight: 700;
+  padding-right: var(--space-6);
+  border-right: var(--line) solid var(--rule);
+}
+
+.atlas-bar nav {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.atlas-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atlas-crumbs li + li::before {
+  content: '/';
+  margin-right: var(--space-1);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+}
+
+.atlas-crumb {
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: 2px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 1.0625rem;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 0.25em;
+  transition: color var(--duration-fast);
+}
+
+.atlas-crumb:hover {
+  color: var(--ink);
+  text-decoration-color: currentColor;
+}
+
+.atlas-crumb[aria-current] {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.atlas-stale-count {
+  padding: var(--space-1) var(--space-2);
+  border: var(--line) solid var(--warn);
+  background: var(--warn-surface);
+}
+
+.atlas-editor {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-soft);
+}
+
+.atlas-editor select {
+  padding: var(--space-1) var(--space-2);
+  border: var(--line) solid var(--ink);
+  border-radius: 2px;
+  background: var(--sheet);
+  font-size: var(--text-small);
+  letter-spacing: 0;
+  text-transform: none;
+}

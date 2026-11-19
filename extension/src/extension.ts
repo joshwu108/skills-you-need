@@ -8,7 +8,7 @@
 
 import * as vscode from 'vscode';
 
-import { AtlasPanel } from './atlasPanel';
+import { AtlasPanel, NEW_NOTE_TITLE } from './atlasPanel';
 import { registerCommands } from './commands';
 import { AtlasHoverProvider, AtlasLensProvider, GutterMarks } from './editorMarks';
 import { followCursor } from './followCursor';
@@ -24,7 +24,21 @@ export interface CodeAtlasApi {
   foldersWithMaps(): string[];
   /** The node shown in a folder's open panel; undefined when no panel is open. */
   focusedNode(folderUri: string): string | null | undefined;
+  /**
+   * What the diagram does when a reader edits a box: write the change to the
+   * folder's map file. Resolves to the reason when the edit is refused.
+   */
+  editNode(folderUri: string, nodeId: string, changes: unknown): Promise<string | undefined>;
+  /** What "Add note" in the diagram does. Resolves to the new note's id, or the reason it was refused. */
+  addNote(folderUri: string, parent: string | null): Promise<{ id: string } | { error: string }>;
+  /** What drawing or removing an arrow in the diagram does. */
+  addLink(folderUri: string, from: string, to: string, label: string): Promise<string | undefined>;
+  removeLink(folderUri: string, from: string, to: string): Promise<string | undefined>;
+  /** What the diagram does when a reader drags boxes: remember one view's positions. */
+  savePositions(folderUri: string, viewId: string | null, positions: unknown): Promise<void>;
 }
+
+const NO_FOLDER = 'That folder is not open in this window.';
 
 export async function activate(context: vscode.ExtensionContext): Promise<CodeAtlasApi> {
   const log = vscode.window.createOutputChannel('CodeAtlas', { log: true });
@@ -70,6 +84,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<CodeAt
       const store = stores.byFolder(folderUri);
       return store ? AtlasPanel.for(store)?.focused : undefined;
     },
+    editNode: async (folderUri, nodeId, changes) => {
+      const store = stores.byFolder(folderUri);
+      return store ? store.editNode(nodeId, changes) : NO_FOLDER;
+    },
+    addNote: async (folderUri, parent) =>
+      stores.byFolder(folderUri)?.addNote({ parent, title: NEW_NOTE_TITLE }) ?? { error: NO_FOLDER },
+    addLink: async (folderUri, from, to, label) => stores.byFolder(folderUri)?.addLink(from, to, label) ?? NO_FOLDER,
+    removeLink: async (folderUri, from, to) => stores.byFolder(folderUri)?.removeLink(from, to) ?? NO_FOLDER,
+    savePositions: async (folderUri, viewId, positions) => stores.byFolder(folderUri)?.savePositions(viewId, positions),
   };
 }
 

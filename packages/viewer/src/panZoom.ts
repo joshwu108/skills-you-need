@@ -63,6 +63,11 @@ export class PanZoom {
     return this.autoFit;
   }
 
+  /** Screen pixels per diagram pixel. */
+  get scale(): number {
+    return this.transform.scale;
+  }
+
   setContentSize(width: number, height: number): void {
     this.content = { width, height };
   }
@@ -83,6 +88,28 @@ export class PanZoom {
       // A flow too large to fit starts at its top-left corner, not off-screen.
       x: Math.max(FIT_PADDING, (width - this.content.width * scale) / 2),
       y: Math.max(FIT_PADDING, (height - this.content.height * scale) / 2),
+    });
+  }
+
+  /**
+   * Pan so the box at (`x`, `y`) in diagram pixels is on screen, centring it
+   * if it is not. A box already in view leaves the reader's position alone.
+   */
+  reveal(x: number, y: number, width: number, height: number): void {
+    const { scale } = this.transform;
+    const left = x * scale + this.transform.x;
+    const top = y * scale + this.transform.y;
+    const isInView =
+      left >= FIT_PADDING &&
+      top >= FIT_PADDING &&
+      left + width * scale <= this.viewport.clientWidth - FIT_PADDING &&
+      top + height * scale <= this.viewport.clientHeight - FIT_PADDING;
+    if (isInView || this.viewport.clientWidth === 0) return;
+    this.autoFit = false;
+    this.apply({
+      scale,
+      x: this.viewport.clientWidth / 2 - (x + width / 2) * scale,
+      y: this.viewport.clientHeight / 2 - (y + height / 2) * scale,
     });
   }
 

@@ -1,0 +1,166 @@
+/*
+ * CodeAtlas viewer. Direction: a survey chart. Ruled paper, ink outlines,
+ * hard offset shadows like stacked sheets, a serif for names and a monospace
+ * for anything that refers to code. Colour is reserved for meaning: each node
+ * kind has one hue, amber means out of date.
+ */
+
+:root {
+  --paper: oklch(96.5% 0.012 85);
+  --sheet: oklch(99.2% 0.006 85);
+  --ink: oklch(25% 0.025 260);
+  --ink-soft: oklch(46% 0.02 260);
+  --rule: oklch(85% 0.016 85);
+  --grid: oklch(91.5% 0.014 85);
+  --focus: oklch(55% 0.19 255);
+  --selected: oklch(93.5% 0.045 200);
+  --warn: oklch(62% 0.15 60);
+  --warn-surface: oklch(94% 0.05 85);
+
+  --kind-service: oklch(52% 0.11 200);
+  --kind-module: oklch(50% 0.14 268);
+  --kind-function: oklch(62% 0.13 70);
+  --kind-step: oklch(56% 0.03 250);
+  --kind-data: oklch(54% 0.12 150);
+  --kind-external: oklch(52% 0.14 335);
+  --kind-note: oklch(58% 0.13 95);
+  --note-paper: oklch(95.5% 0.075 98);
+  --note-paper-selected: oklch(91% 0.12 98);
+
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  --text-meta: 0.6875rem;
+  --text-small: 0.8125rem;
+  --text-body: 0.9375rem;
+  --text-title: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2.25rem;
+
+  --line: 1.5px;
+  --lift: 4px;
+  --grid-size: 24px;
+  --panel-width: clamp(20rem, 32vw, 27.5rem);
+
+  --duration-fast: 150ms;
+  --duration-normal: 320ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: oklch(19% 0.02 255);
+    --sheet: oklch(24% 0.022 255);
+    --ink: oklch(92% 0.012 85);
+    --ink-soft: oklch(72% 0.015 85);
+    --rule: oklch(36% 0.02 255);
+    --grid: oklch(23.5% 0.02 255);
+    --focus: oklch(76% 0.14 250);
+    --selected: oklch(31% 0.05 200);
+    --warn: oklch(80% 0.13 75);
+    --warn-surface: oklch(30% 0.05 75);
+    --kind-service: oklch(74% 0.1 200);
+    --kind-module: oklch(74% 0.11 268);
+    --kind-function: oklch(80% 0.12 80);
+    --kind-step: oklch(72% 0.03 250);
+    --kind-data: oklch(76% 0.12 150);
+    --kind-external: oklch(75% 0.12 335);
+    --kind-note: oklch(86% 0.13 98);
+    --note-paper: oklch(33% 0.05 95);
+    --note-paper-selected: oklch(40% 0.075 95);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --paper: oklch(19% 0.02 255);
+  --sheet: oklch(24% 0.022 255);
+  --ink: oklch(92% 0.012 85);
+  --ink-soft: oklch(72% 0.015 85);
+  --rule: oklch(36% 0.02 255);
+  --grid: oklch(23.5% 0.02 255);
+  --focus: oklch(76% 0.14 250);
+  --selected: oklch(31% 0.05 200);
+  --warn: oklch(80% 0.13 75);
+  --warn-surface: oklch(30% 0.05 75);
+  --kind-service: oklch(74% 0.1 200);
+  --kind-module: oklch(74% 0.11 268);
+  --kind-function: oklch(80% 0.12 80);
+  --kind-step: oklch(72% 0.03 250);
+  --kind-data: oklch(76% 0.12 150);
+  --kind-external: oklch(75% 0.12 335);
+  --kind-note: oklch(86% 0.13 98);
+  --note-paper: oklch(33% 0.05 95);
+  --note-paper-selected: oklch(40% 0.075 95);
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--text-body);
+  line-height: 1.55;
+}
+
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.is-service {
+  --kind: var(--kind-service);
+}
+
+.is-module {
+  --kind: var(--kind-module);
+}
+
+.is-function {
+  --kind: var(--kind-function);
+}
+
+.is-step {
+  --kind: var(--kind-step);
+}
+
+.is-data {
+  --kind: var(--kind-data);
+}
+
+.is-external {
+  --kind: var(--kind-external);
+}
+
+.is-note {
+  --kind: var(--kind-note);
+}
+
+[hidden] {
+  display: none !important;
+}

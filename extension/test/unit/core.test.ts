@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
+import { addLink, addNote, freshNoteId, removeLink, removeNote } from '../../src/core/authorMap';
+import { applyNodeEdit } from '../../src/core/editMap';
 import { isOutOfDate, locate, narrowestAt } from '../../src/core/locate';
 import { isSafeRelativePath, parseMap } from '../../src/core/parseMap';
 import { hashLines, resolveAnchor } from '../../src/core/resolve';
@@ -158,5 +160,172 @@ describe('parseMap', () => {
       expect(isSafeRelativePath(file)).toBe(false);
     }
     expect(isSafeRelativePath('src/a.py')).toBe(true);
+  });
+});
+
+describe('applyNodeEdit', () => {
+  const source = `${JSON.stringify(
+    {
+      version: 1,
+      title: 'T',
+      custom: { kept: true },
+      nodes: [
+        { id: 'a', parent: null, kind: 'service', title: 'A', summary: 'Old.', explanation: 'Why.', extra: [1, 2] },
+        { id: 'b', parent: 'a', kind: 'step', title: 'B' },
+      ],
+      edges: [{ from: 'a', to: 'b' }],
+    },
+    null,
+    2,
+  )}\n`;
+  const edited = (nodeId: unknown, changes: unknown) => {
+    const result = applyNodeEdit(source, nodeId, changes);
+    if (!result.ok) throw new Error(result.error);
+    return JSON.parse(result.text) as { custom: unknown; nodes: Record<string, unknown>[]; edges: unknown[] };
+  };
+
+  test('changes only the named fields of the named node', () => {
+    const data = edited('a', { title: ' Alpha ', kind: 'module', summary: 'New.' });
+    expect(data.nodes[0]).toEqual({ id: 'a', parent: null, kind: 'module', title: 'Alpha', summary: 'New.', explanation: 'Why.', extra: [1, 2] });
+    expect(data.nodes[1]).toEqual({ id: 'b', parent: 'a', kind: 'step', title: 'B' });
+    expect(data.custom).toEqual({ kept: true });
+    expect(data.edges).toEqual([{ from: 'a', to: 'b' }]);
+  });
+
+  test('an emptied summary or explanation is removed, not stored as empty', () => {
+    const [node] = edited('a', { summary: '', explanation: '  ' }).nodes;
+    expect(node).not.toHaveProperty('summary');
+    expect(node).not.toHaveProperty('explanation');
+  });
+
+  test('writes the same formatting the skill writes, so an unchanged file round-trips', () => {
+    const result = applyNodeEdit(source, 'b', { title: 'B' });
+    expect(result).toEqual({ ok: true, text: source });
+  });
+
+  test('ignores fields a reader may not change', () => {
+    const [node] = edited('a', { title: 'A2', id: 'hijack', parent: 'b', anchors: [{ file: '/etc/passwd' }], stale: false }).nodes;
+    expect(node).toMatchObject({ id: 'a', parent: null, title: 'A2' });
+    expect(node).not.toHaveProperty('anchors');
+    expect(node).not.toHaveProperty('stale');
+  });
+
+  test.each([
+    [{ title: '' }, /needs a name/],
+    [{ title: 'two\nlines' }, /one line/],
+    [{ title: 'x'.repeat(121) }, /one line/],
+    [{ kind: 'wizard' }, /kind must be/],
+    [{ summary: 'x'.repeat(161) }, /at most 160/],
+    [{ summary: 7 }, /at most 160/],
+    [{ explanation: 'x'.repeat(20001) }, /too long/],
+    [{}, /Nothing to change/],
+    [{ unknown: 'field' }, /Nothing to change/],
+    ['title', /expected format/],
+    [null, /expected format/],
+  ])('refuses %j', (changes, reason) => {
+    const result = applyNodeEdit(source, 'a', changes);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toMatch(reason);
+  });
+
+  test('refuses an unknown node, a missing id and a file that is not a map', () => {
+    expect(applyNodeEdit(source, 'zzz', { title: 'X' })).toMatchObject({ ok: false, error: expect.stringMatching(/no longer in the map/) });
+    expect(applyNodeEdit(source, 5, { title: 'X' })).toMatchObject({ ok: false });
+    expect(applyNodeEdit('{broken', 'a', { title: 'X' })).toMatchObject({ ok: false, error: expect.stringMatching(/not valid JSON/) });
+    expect(applyNodeEdit('[]', 'a', { title: 'X' })).toMatchObject({ ok: false, error: expect.stringMatching(/expected format/) });
+  });
+});
+
+describe('notes and links', () => {
+  const source = `${JSON.stringify(
+    {
+      version: 1,
+      title: 'T',
+      nodes: [
+        { id: 'a', parent: null, kind: 'service', title: 'A' },
+        { id: 'a.x', parent: 'a', kind: 'function', title: 'X' },
+      ],
+      edges: [{ from: 'a', to: 'a.x', label: 'calls' }],
+    },
+    null,
+    2,
+  )}\n`;
+  type Data = { nodes: Record<string, unknown>[]; edges: Record<string, unknown>[] };
+  const read = (result: { ok: boolean; text?: string; error?: string }): Data => {
+    if (!result.ok || result.text === undefined) throw new Error(result.error);
+    return JSON.parse(result.text) as Data;
+  };
+  const anchor = { file: 'src/a.py', startLine: 3, endLine: 5, hash: '0123456789abcdef' };
+
+  test('a note about selected code is anchored, placed in a flow and linked to its box', () => {
+    const result = addNote(source, { parent: 'a', title: 'Note on a.py:3', anchor, about: 'a.x', seed: 100 });
+    expect(result.ok && result.id).toBe('note.2s');
+    const data = read(result);
+    expect(data.nodes[2]).toEqual({ id: 'note.2s', parent: 'a', kind: 'note', title: 'Note on a.py:3', anchors: [anchor] });
+    expect(data.edges[1]).toEqual({ from: 'note.2s', to: 'a.x', user: true });
+    expect(data.nodes.slice(0, 2)).toEqual(JSON.parse(source).nodes);
+  });
+
+  test('a blank note has no anchor and no arrow, and ids never collide', () => {
+    const first = addNote(source, { parent: null, title: 'New note', seed: 7 });
+    const second = addNote(first.ok ? first.text : '', { parent: null, title: 'New note', seed: 7 });
+    expect([first.ok && first.id, second.ok && second.id]).toEqual(['note.7', 'note.8']);
+    expect(read(first).nodes[2]).toEqual({ id: 'note.7', parent: null, kind: 'note', title: 'New note' });
+    expect(read(first).edges).toHaveLength(1);
+    expect(freshNoteId(new Set(['note.a', 'note.b']), 10)).toBe('note.c');
+  });
+
+  test('refuses a note in a flow that is gone or with an anchor it cannot trust', () => {
+    expect(addNote(source, { parent: 'gone', title: 'N' })).toMatchObject({ ok: false, error: expect.stringMatching(/no longer in the map/) });
+    for (const bad of [{ ...anchor, file: '../etc/passwd' }, { ...anchor, hash: 'xyz' }, { file: 'src/a.py' }]) {
+      expect(addNote(source, { parent: null, title: 'N', anchor: bad as never })).toMatchObject({ ok: false });
+    }
+  });
+
+  test('only an empty note can be deleted, and its arrows go with it', () => {
+    const withNote = addNote(source, { parent: 'a', title: 'N', about: 'a.x', seed: 1 });
+    const text = withNote.ok ? withNote.text : '';
+    expect(read(removeNote(text, 'note.1'))).toEqual(JSON.parse(source));
+    expect(removeNote(text, 'a.x')).toMatchObject({ ok: false, error: expect.stringMatching(/Only notes/) });
+    expect(removeNote(text, 'nope')).toMatchObject({ ok: false });
+    const nested = addNote(text, { parent: 'note.1', title: 'Inner', seed: 2 });
+    expect(removeNote(nested.ok ? nested.text : '', 'note.1')).toMatchObject({ ok: false, error: expect.stringMatching(/boxes inside/) });
+  });
+
+  test('a link is added once, marked as the user\'s, and removed by direction', () => {
+    const linked = addLink(source, 'a.x', 'a', ' result ');
+    expect(read(linked).edges[1]).toEqual({ from: 'a.x', to: 'a', label: 'result', user: true });
+    expect(read(addLink(source, 'a.x', 'a', '')).edges[1]).toEqual({ from: 'a.x', to: 'a', user: true });
+    expect(addLink(linked.ok ? linked.text : '', 'a.x', 'a', 'result')).toMatchObject({ ok: false, error: expect.stringMatching(/already linked/) });
+    const removed = removeLink(linked.ok ? linked.text : '', 'a.x', 'a');
+    expect(read(removed)).toEqual(JSON.parse(source));
+    expect(removeLink(source, 'a.x', 'a')).toMatchObject({ ok: false, error: expect.stringMatching(/no longer in the map/) });
+    expect(removeLink(source, 'a', 'a.x')).toMatchObject({ ok: false, error: expect.stringMatching(/Only links you drew/) });
+  });
+
+  test.each([
+    ['a', 'a', 'x', /itself/],
+    ['a', 'gone', 'x', /no longer in the map/],
+    [5, 'a', 'x', /no longer in the map/],
+    ['a', 'a.x', 'x'.repeat(61), /one line/],
+    ['a', 'a.x', 'two\nlines', /one line/],
+    ['a', 'a.x', 7, /one line/],
+  ])('refuses a link from %j to %j labelled %j', (from, to, label, reason) => {
+    const result = addLink(source, from, to, label);
+    expect(!result.ok && result.error).toMatch(reason);
+  });
+
+  test('a kind edit cannot turn a box into a note or a note into a box', () => {
+    const withNote = addNote(source, { parent: null, title: 'N', seed: 1 });
+    const text = withNote.ok ? withNote.text : '';
+    expect(applyNodeEdit(text, 'a', { kind: 'note' })).toMatchObject({ ok: false, error: expect.stringMatching(/stays a note/) });
+    expect(applyNodeEdit(text, 'note.1', { kind: 'step' })).toMatchObject({ ok: false });
+    expect(applyNodeEdit(text, 'note.1', { kind: 'note', title: 'Renamed' })).toMatchObject({ ok: true });
+  });
+
+  test('none of them touch a file that is not a map', () => {
+    expect(addNote('{', { parent: null, title: 'N' })).toMatchObject({ ok: false });
+    expect(removeNote('[]', 'a')).toMatchObject({ ok: false });
+    expect(addLink('null', 'a', 'b', '')).toMatchObject({ ok: false });
   });
 });

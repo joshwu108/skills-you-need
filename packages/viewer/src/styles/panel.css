@@ -1,0 +1,216 @@
+/* --- panel ------------------------------------------------------------- */
+
+.atlas-panel {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-8) var(--space-6) var(--space-8);
+  border-left: var(--line) solid var(--ink);
+  background: var(--sheet);
+}
+
+.atlas-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.atlas-tag {
+  padding: 0 var(--space-2);
+  border: var(--line) solid var(--kind, var(--ink));
+  color: var(--kind, var(--ink));
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+.atlas-tag.is-flag {
+  border-style: dashed;
+  color: var(--ink-soft);
+  border-color: var(--ink-soft);
+}
+
+.atlas-tag.is-warning {
+  border-color: var(--warn);
+  background: var(--warn-surface);
+  color: var(--ink);
+}
+
+.atlas-panel h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-title);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.atlas-lead {
+  margin: 0 0 var(--space-6);
+  color: var(--ink-soft);
+  font-size: 1.0625rem;
+  font-style: italic;
+}
+
+.atlas-callout {
+  margin: 0 0 var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border-left: 5px solid var(--warn);
+  background: var(--warn-surface);
+  font-size: var(--text-small);
+}
+
+.atlas-hint {
+  margin: var(--space-4) 0 0;
+  color: var(--ink-soft);
+  font-size: var(--text-small);
+}
+
+.atlas-prose > :first-child {
+  margin-top: 0;
+}
+
+.atlas-prose p,
+.atlas-prose ul,
+.atlas-prose ol,
+.atlas-prose pre {
+  margin: 0 0 var(--space-4);
+}
+
+.atlas-prose ul,
+.atlas-prose ol {
+  padding-left: var(--space-6);
+}
+
+.atlas-prose li + li {
+  margin-top: var(--space-1);
+}
+
+.atlas-prose h3,
+.atlas-prose h4,
+.atlas-prose h5,
+.atlas-prose h6 {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: 1.0625rem;
+  line-height: 1.25;
+}
+
+.atlas-prose code {
+  padding: 0.08em 0.3em;
+  border-radius: 2px;
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+.atlas-prose pre {
+  overflow-x: auto;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  line-height: 1.5;
+}
+
+.atlas-prose pre code {
+  padding: 0;
+  background: none;
+}
+
+.atlas-prose a {
+  color: inherit;
+  text-decoration-color: var(--focus);
+  text-underline-offset: 0.2em;
+}
+
+.atlas-section {
+  margin-top: var(--space-8);
+  padding-top: var(--space-3);
+  border-top: var(--line) solid var(--ink);
+}
+
+.atlas-section h3 {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.atlas-anchors,
+.atlas-children {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atlas-anchor,
+.atlas-child {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: none;
+  text-align: left;
+  transition:
+    border-color var(--duration-fast),
+    background-color var(--duration-fast);
+}
+
+.atlas-anchor:hover,
+.atlas-child:hover {
+  border-color: var(--ink);
+  background: var(--paper);
+}
+
+.atlas-anchor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.atlas-anchor::after {
+  content: '\2197';
+  grid-area: 1 / 2 / span 2;
+  align-self: center;
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.atlas-anchor-path {
+  overflow-wrap: anywhere;
+}
+
+.atlas-anchor-symbol {
+  color: var(--ink-soft);
+}
+
+.atlas-child {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.atlas-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--kind, var(--ink-soft));
+}
+
+.atlas-child-title {
+  font-weight: 700;
+}
+
+.atlas-child-summary {
+  grid-column: 2;
+  color: var(--ink-soft);
+  font-size: var(--text-small);
+}
+
+.atlas-fatal {
+  max-width: 40rem;
+  margin: var(--space-8) auto;
+  padding: var(--space-4) var(--space-6);
+  border-left: 5px solid var(--warn);
+  background: var(--warn-surface);
+}

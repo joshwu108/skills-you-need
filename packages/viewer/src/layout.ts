@@ -3,11 +3,15 @@
 import dagre from '@dagrejs/dagre';
 
 import type { View } from './graph';
+import { positionOf } from './positions';
+import type { Point, ViewPositions } from './types';
 
-export const NODE_WIDTH = 216;
-export const NODE_HEIGHT = 84;
+export type { Point };
+
+export const NODE_WIDTH = 236;
+export const NODE_HEIGHT = 112;
 export const GHOST_WIDTH = 172;
-export const GHOST_HEIGHT = 44;
+export const GHOST_HEIGHT = 48;
 
 const NODE_GAP = 40;
 const RANK_GAP = 72;
@@ -16,11 +20,6 @@ const LABEL_CHAR_WIDTH = 6.7;
 const LABEL_PADDING = 18;
 const LABEL_HEIGHT = 22;
 const LABEL_MAX_CHARS = 28;
-
-export interface Point {
-  x: number;
-  y: number;
-}
 
 export interface Box extends Point {
   id: string;
@@ -102,6 +101,66 @@ export function layoutView(view: View): Layout {
 
   const size = graph.graph();
   return { width: size.width ?? 0, height: size.height ?? 0, boxes, routes };
+}
+
+function centre(box: Box): Point {
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/** Where the line from the centre of `box` towards `target` leaves the box. */
+function borderPoint(box: Box, target: Point): Point {
+  const from = centre(box);
+  const dx = target.x - from.x;
+  const dy = target.y - from.y;
+  if (dx === 0 && dy === 0) return from;
+  const reach = Math.min(
+    dx === 0 ? Infinity : box.width / 2 / Math.abs(dx),
+    dy === 0 ? Infinity : box.height / 2 / Math.abs(dy),
+  );
+  return { x: from.x + dx * reach, y: from.y + dy * reach };
+}
+
+function straightRoute(route: Route, from: Box, to: Box): Route {
+  const start = borderPoint(from, centre(to));
+  const end = borderPoint(to, centre(from));
+  const label = route.label
+    ? { ...route.label, x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
+    : undefined;
+  return { ...route, points: [start, end], label };
+}
+
+/**
+ * `layout` with the boxes the reader placed by hand moved to their positions.
+ *
+ * An arrow touching a moved box is redrawn as a straight line between the two
+ * boxes; the automatic route no longer leads anywhere useful. Positions for
+ * nodes that are not in the layout are ignored, so a layout file outlives
+ * renamed or removed nodes.
+ */
+export function applyPositions(layout: Layout, positions: ViewPositions): Layout {
+  const moved = new Set<string>();
+  const boxes = layout.boxes.map((box) => {
+    const placed = positionOf(positions, box.id);
+    if (!placed) return box;
+    moved.add(box.id);
+    return { ...box, x: placed.x, y: placed.y };
+  });
+  if (moved.size === 0) return layout;
+
+  const byId = new Map(boxes.map((box) => [box.id, box]));
+  const routes = layout.routes.map((route) => {
+    const from = byId.get(route.from);
+    const to = byId.get(route.to);
+    const isTouched = moved.has(route.from) || moved.has(route.to);
+    return isTouched && from && to ? straightRoute(route, from, to) : route;
+  });
+  return {
+    // reduce, not Math.max(...): a very large flow must not overflow the argument list.
+    width: boxes.reduce((most, box) => Math.max(most, box.x + box.width + MARGIN), layout.width),
+    height: boxes.reduce((most, box) => Math.max(most, box.y + box.height + MARGIN), layout.height),
+    boxes,
+    routes,
+  };
 }
 
 /** An SVG path through `points`, rounded at each interior point. */

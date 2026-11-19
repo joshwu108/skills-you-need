@@ -2,7 +2,7 @@
   "name": "codeatlas",
   "displayName": "CodeAtlas",
   "description": "See the visual explanation for the code under your cursor, and jump from a flow diagram to the lines behind each box. Reads the map written by the CodeAtlas skill for Claude Code.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "joshwu108",
   "license": "MIT",
   "repository": {
@@ -31,18 +31,25 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "workspaceContains:.codeatlas/map.json"
+    "workspaceContains:.codeatlas/map.json",
+    "onStartupFinished"
   ],
   "contributes": {
     "commands": [
       {
         "command": "codeatlas.openMap",
         "title": "Open Map",
-        "category": "CodeAtlas"
+        "category": "CodeAtlas",
+        "icon": "$(type-hierarchy)"
       },
       {
         "command": "codeatlas.explainHere",
         "title": "Explain This Code",
+        "category": "CodeAtlas"
+      },
+      {
+        "command": "codeatlas.addNote",
+        "title": "Add Note for Selection",
         "category": "CodeAtlas"
       },
       {
@@ -63,6 +70,25 @@
           "command": "codeatlas.explainHere",
           "when": "codeatlas.hasMap",
           "group": "navigation@90"
+        },
+        {
+          "command": "codeatlas.addNote",
+          "when": "codeatlas.hasMap",
+          "group": "navigation@91"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "codeatlas.openMap",
+          "when": "resourcePath =~ /[\\\\/]\\.codeatlas[\\\\/](map\\.json|atlas\\.html|layout\\.json)$/",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "codeatlas.openMap",
+          "when": "resourcePath =~ /[\\\\/]\\.codeatlas[\\\\/](map\\.json|atlas\\.html|layout\\.json)$/",
+          "group": "navigation"
         }
       ]
     },
@@ -104,5 +130,12 @@
     "esbuild": "^0.25.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode the map can be read, but editing a box and saving box positions are disabled."
+    },
+    "virtualWorkspaces": true
   }
 }

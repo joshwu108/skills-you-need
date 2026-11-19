@@ -12,7 +12,16 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 
-from .model import EDGE_KINDS, HASH_PATTERN, ID_PATTERN, MAP_VERSION, NODE_KINDS, read_source, split_lines
+from .model import (
+    EDGE_KINDS,
+    HASH_PATTERN,
+    ID_PATTERN,
+    MAP_VERSION,
+    NODE_KINDS,
+    USER_KIND,
+    read_source,
+    split_lines,
+)
 
 MAX_CHILDREN_PER_VIEW = 12
 MAX_SUMMARY_LENGTH = 160
@@ -23,9 +32,9 @@ NODE_KEYS = {
     "anchors", "planned", "stale", "staleReason",
 }
 ANCHOR_KEYS = {"file", "symbol", "startLine", "endLine", "hash"}
-EDGE_KEYS = {"from", "to", "label", "kind"}
+EDGE_KEYS = {"from", "to", "label", "kind", "user"}
 # Kinds that describe something outside the repository, so no code is expected.
-UNANCHORED_KINDS = {"external", "data"}
+UNANCHORED_KINDS = {"external", "data", USER_KIND}
 
 
 @dataclass(frozen=True)
@@ -131,7 +140,8 @@ def _check_node(node: dict, path: str, known_ids: set) -> list:
             "warning", f"{path}.summary",
             f"summary is longer than {MAX_SUMMARY_LENGTH} characters; move detail to explanation",
         ))
-    if not _is_text(node.get("explanation")) and not node.get("planned"):
+    is_users = node.get("kind") == USER_KIND
+    if not _is_text(node.get("explanation")) and not node.get("planned") and not is_users:
         issues.append(Issue("warning", f"{path}.explanation", "node has no explanation"))
 
     anchors = node.get("anchors", [])
@@ -191,6 +201,12 @@ def _check_hierarchy(nodes: list) -> list:
     children = Counter(
         n.get("parent") for n in by_id.values() if n.get("parent") is None or n.get("parent") in by_id
     )
+    # The size limit is advice to whoever draws the map; the user's notes are not theirs to group.
+    drawn = Counter(
+        n.get("parent")
+        for n in by_id.values()
+        if n.get("kind") != USER_KIND and (n.get("parent") is None or n.get("parent") in by_id)
+    )
     index_of = {id(n): i for i, n in enumerate(nodes)}
 
     for node_id, node in by_id.items():
@@ -208,19 +224,19 @@ def _check_hierarchy(nodes: list) -> list:
         needs_code = node.get("kind") not in UNANCHORED_KINDS and not node.get("planned")
         if is_leaf and needs_code and not node.get("anchors"):
             issues.append(Issue("warning", f"{path}.anchors", f"leaf node '{node_id}' has no anchor to code"))
-        if children[node_id] > MAX_CHILDREN_PER_VIEW:
+        if drawn[node_id] > MAX_CHILDREN_PER_VIEW:
             issues.append(Issue(
                 "warning", path,
-                f"'{node_id}' has {children[node_id]} children; group them so a view stays under "
+                f"'{node_id}' has {drawn[node_id]} children; group them so a view stays under "
                 f"{MAX_CHILDREN_PER_VIEW + 1}",
             ))
 
     if children[None] == 0:
         issues.append(Issue("error", "nodes", "at least one node must have parent null"))
-    elif children[None] > MAX_CHILDREN_PER_VIEW:
+    elif drawn[None] > MAX_CHILDREN_PER_VIEW:
         issues.append(Issue(
             "warning", "nodes",
-            f"the top level has {children[None]} children; group them so a view stays under "
+            f"the top level has {drawn[None]} children; group them so a view stays under "
             f"{MAX_CHILDREN_PER_VIEW + 1}",
         ))
     return issues
@@ -239,6 +255,8 @@ def _check_edges(atlas: dict) -> list:
             issues.append(Issue("error", path, "an edge must be an object"))
             continue
         issues.extend(_unknown_keys(edge, EDGE_KEYS, path))
+        if "user" in edge and not isinstance(edge["user"], bool):
+            issues.append(Issue("error", f"{path}.user", "user must be true or false"))
         for end in ("from", "to"):
             if edge.get(end) not in known_ids:
                 issues.append(Issue("error", f"{path}.{end}", f"'{edge.get(end)}' is not a node id"))

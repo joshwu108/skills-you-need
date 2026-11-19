@@ -23,6 +23,7 @@ from typing import Optional, Sequence
 
 from atlas.anchors import CHANGED, MISSING, MOVED, refresh, stamp
 from atlas.hook import run_hook
+from atlas.layout import LAYOUT_FILE, load_layout
 from atlas.model import (
     MAP_DIR,
     MAP_FILE,
@@ -134,7 +135,8 @@ def _build(args: argparse.Namespace) -> int:
     save_map(map_path, atlas)
     # Not resolved: a link at the output path must be seen and refused, not followed.
     output = (args.output or map_path.parent / VIEWER_FILE).absolute()
-    write_text(output, build_html(atlas, root))
+    layout = load_layout(map_path.parent / LAYOUT_FILE)
+    write_text(output, build_html(atlas, root, layout=layout))
     _ignore_viewer(map_path.parent)
 
     stale = _stale_ids(atlas)

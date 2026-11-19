@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest';
 
 import { buildIndex, viewOf } from '../src/graph';
-import { GHOST_WIDTH, NODE_HEIGHT, NODE_WIDTH, edgeLabel, layoutView, smoothPath } from '../src/layout';
-import { anchorLabel, editorUrl, isEditorScheme, isSafeRelativePath } from '../src/links';
+import { GHOST_WIDTH, NODE_HEIGHT, NODE_WIDTH, applyPositions, edgeLabel, layoutView, smoothPath } from '../src/layout';
+import { anchorLabel, editorUrl, isEditorScheme, isEmbeddedBrowser, isSafeRelativePath } from '../src/links';
 import { SAMPLE } from './fixture';
 
 const index = buildIndex(SAMPLE);
@@ -86,5 +86,51 @@ describe('links', () => {
     expect(isEditorScheme('cursor')).toBe(true);
     expect(isEditorScheme('javascript')).toBe(false);
     expect(isEditorScheme(null)).toBe(false);
+  });
+});
+
+describe('applyPositions', () => {
+  const view = viewOf(buildIndex(SAMPLE), null);
+  const automatic = layoutView(view);
+
+  test('no positions leaves the automatic layout as it is', () => {
+    expect(applyPositions(automatic, {})).toBe(automatic);
+    expect(applyPositions(automatic, { 'not.in.view': { x: 0, y: 0 } })).toBe(automatic);
+  });
+
+  test('moves the placed box and leaves the others', () => {
+    const placed = applyPositions(automatic, { api: { x: 640, y: 480 } });
+    expect(placed.boxes.find((box) => box.id === 'api')).toMatchObject({ x: 640, y: 480 });
+    expect(placed.boxes.find((box) => box.id === 'db')).toEqual(automatic.boxes.find((box) => box.id === 'db'));
+    expect(automatic.boxes.find((box) => box.id === 'api')?.x).not.toBe(640);
+  });
+
+  test('redraws arrows touching the moved box between the two box edges', () => {
+    const placed = applyPositions(automatic, { api: { x: 640, y: 480 } });
+    const moved = placed.routes.find((route) => route.from === 'api' && route.to === 'engine');
+    const api = placed.boxes.find((box) => box.id === 'api')!;
+    expect(moved?.points).toHaveLength(2);
+    const [start] = moved!.points;
+    const onEdge =
+      start!.x === api.x || start!.x === api.x + api.width || start!.y === api.y || start!.y === api.y + api.height;
+    expect(onEdge).toBe(true);
+    expect(moved?.label?.text).toBe('orders · order');
+    const untouched = placed.routes.find((route) => route.from === 'engine' && route.to === 'db');
+    expect(untouched).toEqual(automatic.routes.find((route) => route.from === 'engine' && route.to === 'db'));
+  });
+
+  test('grows the drawing to contain a box dragged past its edge', () => {
+    const placed = applyPositions(automatic, { api: { x: 4000, y: 3000 } });
+    expect(placed.width).toBeGreaterThan(4000 + NODE_WIDTH);
+    expect(placed.height).toBeGreaterThan(3000 + NODE_HEIGHT);
+  });
+});
+
+describe('isEmbeddedBrowser', () => {
+  test('recognises an editor built-in browser by its Electron user agent', () => {
+    const editor = 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.99.0 Chrome/134.0 Electron/35.1 Safari/537.36';
+    const chrome = 'Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36';
+    expect(isEmbeddedBrowser(editor)).toBe(true);
+    expect(isEmbeddedBrowser(chrome)).toBe(false);
   });
 });

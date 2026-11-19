@@ -46,13 +46,15 @@ function flash(editor: vscode.TextEditor, range: vscode.Range): void {
 }
 
 /**
- * Show `anchor` in an editor. `avoidColumn` is where the diagram is.
+ * Show `anchor` in an editor. `avoidColumn` is where the diagram is;
+ * `preserveFocus` leaves the keyboard where it was.
  * Returns false, after telling the reader why, when the code cannot be shown.
  */
 export async function revealAnchor(
   store: MapStore,
   anchor: Anchor,
   avoidColumn?: vscode.ViewColumn,
+  preserveFocus = false,
 ): Promise<boolean> {
   const uri = store.uriFor(anchor.file);
   if (!uri) {
@@ -78,6 +80,7 @@ export async function revealAnchor(
   lastReveal = { document: uri.toString(), at: Date.now() };
   const editor = await vscode.window.showTextDocument(document, {
     viewColumn: columnFor(uri, avoidColumn),
+    preserveFocus,
     selection: new vscode.Range(range.start, range.start),
   });
   lastReveal = { document: uri.toString(), at: Date.now() };

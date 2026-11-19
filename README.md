@@ -35,9 +35,15 @@ Ask in plain language, or call the skill directly:
 | `/codeatlas:codeatlas plan add rate limiting` | Draws the design first, then fills in each box as the code is written. |
 | `/codeatlas:codeatlas refresh` | Rewrites the explanations whose code has changed. |
 
-Claude opens `.codeatlas/atlas.html` when the map is built. Choose your editor in the page header; clicking a code link opens it there.
+Claude opens `.codeatlas/atlas.html` when the map is built. Choose your editor in the page header; clicking a code link opens it there. Open the page in a normal browser: inside an editor's built-in browser its code links cannot work, and the page says so.
 
-Commit `.codeatlas/map.json` if you want teammates to have the map. `atlas.html` contains absolute paths, so it is ignored by git and rebuilt on each machine.
+In the diagram:
+
+- **Walk through** reads the map one box at a time, in the order the arrows run. Use the right and left arrow keys.
+- Press `/` to find a box by name. Hover a box to pick out its arrows.
+- Drag a box to move it; **Tidy** puts the flow back. The page remembers positions in the browser. The extension saves them to `.codeatlas/layout.json`, which you can commit.
+
+Commit `.codeatlas/map.json` (and `layout.json`, if you arranged the boxes) if you want teammates to have the map. `atlas.html` contains absolute paths, so it is ignored by git and rebuilt on each machine.
 
 ### How it stays accurate
 
@@ -55,6 +61,9 @@ The extension adds the other direction, from a line of code to its visual, and s
 
 - A link above each explained piece of code, a hover on its first line, and a gutter mark.
 - The flow diagram in a panel beside the code. Clicking a box jumps to its lines.
+- The walkthrough can open each step's code beside the diagram as you go.
+- **Edit** in the panel changes a box's name, summary and explanation and saves them to the map.
+- **Add Note for Selection** (command palette or the editor's right-click menu) attaches your own note to the lines you selected. **Add note** in the diagram adds a free-standing one, and the Connections section of the panel draws and removes your own arrows. Claude keeps your notes and links when it rewrites the map.
 - While the panel is open, moving the cursor shows the explanation for the code you are in.
 - Anchors follow unsaved edits, and code that changed is flagged as out of date.
 
@@ -63,7 +72,7 @@ Until it is on the Marketplace, build and install it locally:
 ```bash
 npm install
 npm run package -w codeatlas
-code --install-extension extension/codeatlas-0.1.0.vsix
+code --install-extension extension/codeatlas-0.2.0.vsix
 ```
 
 See [`extension/README.md`](extension/README.md) for commands and settings, and [`PUBLISHING.md`](PUBLISHING.md) for releasing it.

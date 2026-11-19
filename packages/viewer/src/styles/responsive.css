@@ -1,0 +1,58 @@
+/* --- narrow screens ---------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .atlas {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 56vh auto;
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .atlas-bar {
+    padding-inline: var(--space-4);
+  }
+
+  .atlas-mark {
+    padding-right: var(--space-4);
+  }
+
+  .atlas-tour {
+    right: var(--space-4);
+    bottom: calc(var(--space-4) + 3.25rem);
+  }
+
+  .atlas-search {
+    flex: 1 1 100%;
+  }
+
+  .atlas-search-results {
+    right: auto;
+    left: 0;
+  }
+
+  .atlas-panel {
+    padding: var(--space-6) var(--space-4) var(--space-8);
+    border-top: var(--line) solid var(--ink);
+    border-left: 0;
+    overflow-y: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-flow.enters-in,
+  .atlas-flow.enters-out {
+    animation: none;
+  }
+
+  .atlas-node,
+  .atlas-edge,
+  .atlas-edge-label,
+  .atlas-tour-meter span,
+  .atlas-node-body,
+  .atlas-node-code,
+  .atlas-crumb,
+  .atlas-anchor,
+  .atlas-child {
+    transition: none;
+  }
+}
